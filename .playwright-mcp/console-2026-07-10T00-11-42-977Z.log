@@ -1,0 +1,151 @@
+[      11ms] [WARNING] crbug/1173575, non-JS module files deprecated. @ chrome://resources/js/load_time_data_deprecated.js:3
+[    1825ms] [LOG] WARNING: Tried to load AngularJS more than once. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[    1947ms] [WARNING] An error occurred! For more details, see the full error text at https://go.apollo.dev/c/err#%7B%22version%22%3A%223.14.0%22%2C%22message%22%3A104%2C%22args%22%3A%5B%22ApolloClient%22%2C%22connectToDevTools%22%2C%22Please%20use%20%60devtools.enabled%60%20instead.%22%5D%7D @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[    1960ms] [WARNING] The namespace Purchasing.PurchaseDialog was not found @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[    2070ms] [LOG] 
+      _______      _________      _____       ______     _
+     / _____ \    |____ ____|    / ___ \     | ____ \   | |
+    / /     \_\       | |       / /   \ \    | |   \ \  | |
+    | |               | |      / /     \ \   | |   | |  | |
+    \ \______         | |      | |     | |   | |___/ /  | |
+     \______ \        | |      | |     | |   |  ____/   | |
+            \ \       | |      | |     | |   | |        | |
+     _      | |       | |      \ \     / /   | |        |_|
+    \ \_____/ /       | |       \ \___/ /    | |         _
+     \_______/        |_|        \_____/     |_|        |_|
+
+     Keep your account safe! Do not send any information from
+     here to anyone or paste any text here.
+
+     If someone is asking you to copy or paste text here then
+     you're giving someone access to your account, your gear,
+     and your Robux.
+
+     To learn more about keeping your account safe you can go to
+
+     https://www.roblox.com/info/account-safety @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[    2279ms] [LOG] Account Security Prompt: No assignments were retrieved @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[    2546ms] [INFO] [2026-07-10T00:11:45.522Z] Information: WebSocket connected to wss://realtime-signalr.roblox.com/userhub. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[    2835ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0
+[  497047ms] [ERROR] NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.
+    at ao (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:81836)
+    at a5 (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:100595)
+    at t.unstable_runWithPriority (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:47:3896)
+    at ot (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44439)
+    at a8 (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:97809)
+    at aG (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:87522)
+    at https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44665
+    at t.unstable_runWithPriority (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:47:3896)
+    at ot (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44439)
+    at oo (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44611)
+    at or (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44546)
+    at aH (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:84640)
+    at iT (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:64137)
+    at https://js.rbxcdn.com/94f7273feb29afac97ac072f7cf12b68085d1af857d7c70a247a6b6bd1526eb6-PlacesList.js:20:789460
+    at ResizeObserver.<anonymous> (https://js.rbxcdn.com/94f7273feb29afac97ac072f7cf12b68085d1af857d7c70a247a6b6bd1526eb6-PlacesList.js:20:789524) @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  497053ms] [ERROR] NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.
+    at ao (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:81836)
+    at a5 (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:100595)
+    at t.unstable_runWithPriority (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:47:3896)
+    at ot (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44439)
+    at a8 (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:97809)
+    at aG (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:87522)
+    at https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44665
+    at t.unstable_runWithPriority (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:47:3896)
+    at ot (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44439)
+    at oo (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44611)
+    at or (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44546)
+    at aH (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:84640)
+    at iT (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:64137)
+    at https://js.rbxcdn.com/94f7273feb29afac97ac072f7cf12b68085d1af857d7c70a247a6b6bd1526eb6-PlacesList.js:20:789460
+    at ResizeObserver.<anonymous> (https://js.rbxcdn.com/94f7273feb29afac97ac072f7cf12b68085d1af857d7c70a247a6b6bd1526eb6-PlacesList.js:20:789524) @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  497053ms] [ERROR] NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.
+    at ao (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:81836)
+    at a5 (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:100595)
+    at t.unstable_runWithPriority (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:47:3896)
+    at ot (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44439)
+    at a8 (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:97809)
+    at aG (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:87522)
+    at https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44665
+    at t.unstable_runWithPriority (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:47:3896)
+    at ot (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44439)
+    at oo (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44611)
+    at or (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44546)
+    at aH (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:84640)
+    at iT (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:64137)
+    at https://js.rbxcdn.com/94f7273feb29afac97ac072f7cf12b68085d1af857d7c70a247a6b6bd1526eb6-PlacesList.js:20:789460
+    at ResizeObserver.<anonymous> (https://js.rbxcdn.com/94f7273feb29afac97ac072f7cf12b68085d1af857d7c70a247a6b6bd1526eb6-PlacesList.js:20:789524) @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  497054ms] [ERROR] NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.
+    at ao (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:81836)
+    at a5 (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:100595)
+    at t.unstable_runWithPriority (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:47:3896)
+    at ot (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44439)
+    at a8 (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:97809)
+    at aG (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:87522)
+    at https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44665
+    at t.unstable_runWithPriority (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:47:3896)
+    at ot (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44439)
+    at oo (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44611)
+    at or (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:44546)
+    at aH (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:84640)
+    at iT (https://js.rbxcdn.com/c27f57f4a397dabc2fe3b74fec93c2401913bdf49373f9339c00b6f18b32d2ac.js:19:64137)
+    at https://js.rbxcdn.com/94f7273feb29afac97ac072f7cf12b68085d1af857d7c70a247a6b6bd1526eb6-PlacesList.js:20:789460
+    at ResizeObserver.<anonymous> (https://js.rbxcdn.com/94f7273feb29afac97ac072f7cf12b68085d1af857d7c70a247a6b6bd1526eb6-PlacesList.js:20:789524) @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  504067ms] [LOG] WARNING: Tried to load AngularJS more than once. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  504171ms] [WARNING] An error occurred! For more details, see the full error text at https://go.apollo.dev/c/err#%7B%22version%22%3A%223.14.0%22%2C%22message%22%3A104%2C%22args%22%3A%5B%22ApolloClient%22%2C%22connectToDevTools%22%2C%22Please%20use%20%60devtools.enabled%60%20instead.%22%5D%7D @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  504242ms] [WARNING] The namespace Purchasing.PurchaseDialog was not found @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  504350ms] [LOG] 
+      _______      _________      _____       ______     _
+     / _____ \    |____ ____|    / ___ \     | ____ \   | |
+    / /     \_\       | |       / /   \ \    | |   \ \  | |
+    | |               | |      / /     \ \   | |   | |  | |
+    \ \______         | |      | |     | |   | |___/ /  | |
+     \______ \        | |      | |     | |   |  ____/   | |
+            \ \       | |      | |     | |   | |        | |
+     _      | |       | |      \ \     / /   | |        |_|
+    \ \_____/ /       | |       \ \___/ /    | |         _
+     \_______/        |_|        \_____/     |_|        |_|
+
+     Keep your account safe! Do not send any information from
+     here to anyone or paste any text here.
+
+     If someone is asking you to copy or paste text here then
+     you're giving someone access to your account, your gear,
+     and your Robux.
+
+     To learn more about keeping your account safe you can go to
+
+     https://www.roblox.com/info/account-safety @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  504934ms] [LOG] Account Security Prompt: No assignments were retrieved @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  505294ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0
+[  508710ms] [INFO] [2026-07-10T00:20:11.687Z] Information: WebSocket connected to wss://realtime-signalr.roblox.com/userhub. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  511542ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/rotating-client-service/v1/heartbeat?pathname=%2Fhome:0
+[  516833ms] [LOG] WARNING: Tried to load AngularJS more than once. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  516890ms] [WARNING] An error occurred! For more details, see the full error text at https://go.apollo.dev/c/err#%7B%22version%22%3A%223.14.0%22%2C%22message%22%3A104%2C%22args%22%3A%5B%22ApolloClient%22%2C%22connectToDevTools%22%2C%22Please%20use%20%60devtools.enabled%60%20instead.%22%5D%7D @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  516899ms] [WARNING] The namespace Purchasing.PurchaseDialog was not found @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  516970ms] [LOG] 
+      _______      _________      _____       ______     _
+     / _____ \    |____ ____|    / ___ \     | ____ \   | |
+    / /     \_\       | |       / /   \ \    | |   \ \  | |
+    | |               | |      / /     \ \   | |   | |  | |
+    \ \______         | |      | |     | |   | |___/ /  | |
+     \______ \        | |      | |     | |   |  ____/   | |
+            \ \       | |      | |     | |   | |        | |
+     _      | |       | |      \ \     / /   | |        |_|
+    \ \_____/ /       | |       \ \___/ /    | |         _
+     \_______/        |_|        \_____/     |_|        |_|
+
+     Keep your account safe! Do not send any information from
+     here to anyone or paste any text here.
+
+     If someone is asking you to copy or paste text here then
+     you're giving someone access to your account, your gear,
+     and your Robux.
+
+     To learn more about keeping your account safe you can go to
+
+     https://www.roblox.com/info/account-safety @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  517632ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0
+[  517796ms] [LOG] Account Security Prompt: No assignments were retrieved @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  521315ms] [INFO] [2026-07-10T00:20:24.292Z] Information: WebSocket connected to wss://realtime-signalr.roblox.com/userhub. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  719980ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0

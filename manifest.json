@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Roblox Extension",
+  "version": "0.1.0",
+  "description": "Basic Chrome extension for Roblox home.",
+  "content_scripts": [
+    {
+      "matches": ["https://www.roblox.com/home"],
+      "css": ["content.css"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

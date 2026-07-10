@@ -1,0 +1,232 @@
+[     671ms] [LOG] WARNING: Tried to load AngularJS more than once. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[     752ms] [WARNING] An error occurred! For more details, see the full error text at https://go.apollo.dev/c/err#%7B%22version%22%3A%223.14.0%22%2C%22message%22%3A104%2C%22args%22%3A%5B%22ApolloClient%22%2C%22connectToDevTools%22%2C%22Please%20use%20%60devtools.enabled%60%20instead.%22%5D%7D @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[     767ms] [WARNING] The namespace Purchasing.PurchaseDialog was not found @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[     863ms] [LOG] 
+      _______      _________      _____       ______     _
+     / _____ \    |____ ____|    / ___ \     | ____ \   | |
+    / /     \_\       | |       / /   \ \    | |   \ \  | |
+    | |               | |      / /     \ \   | |   | |  | |
+    \ \______         | |      | |     | |   | |___/ /  | |
+     \______ \        | |      | |     | |   |  ____/   | |
+            \ \       | |      | |     | |   | |        | |
+     _      | |       | |      \ \     / /   | |        |_|
+    \ \_____/ /       | |       \ \___/ /    | |         _
+     \_______/        |_|        \_____/     |_|        |_|
+
+     Keep your account safe! Do not send any information from
+     here to anyone or paste any text here.
+
+     If someone is asking you to copy or paste text here then
+     you're giving someone access to your account, your gear,
+     and your Robux.
+
+     To learn more about keeping your account safe you can go to
+
+     https://www.roblox.com/info/account-safety @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[    1269ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/rotating-client-service/v1/register:0
+[    1291ms] [LOG] Account Security Prompt: No assignments were retrieved @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[    1397ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0
+[    6329ms] [ERROR] Failed to load resource: the server responded with a status of 502 () @ https://lms.roblox.com/report:0
+[    6332ms] [ERROR] {data: Object, status: 502, statusText: , headers: Object, config: Object} @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[   10153ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/rotating-client-service/v1/heartbeat?pathname=%2Fhome:0
+[   11147ms] [ERROR] Failed to load resource: the server responded with a status of 502 () @ https://apis.roblox.com/beacon-api/v1/measurements:0
+[  344791ms] [LOG] WARNING: Tried to load AngularJS more than once. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  344906ms] [WARNING] An error occurred! For more details, see the full error text at https://go.apollo.dev/c/err#%7B%22version%22%3A%223.14.0%22%2C%22message%22%3A104%2C%22args%22%3A%5B%22ApolloClient%22%2C%22connectToDevTools%22%2C%22Please%20use%20%60devtools.enabled%60%20instead.%22%5D%7D @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  344924ms] [WARNING] The namespace Purchasing.PurchaseDialog was not found @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  345012ms] [LOG] 
+      _______      _________      _____       ______     _
+     / _____ \    |____ ____|    / ___ \     | ____ \   | |
+    / /     \_\       | |       / /   \ \    | |   \ \  | |
+    | |               | |      / /     \ \   | |   | |  | |
+    \ \______         | |      | |     | |   | |___/ /  | |
+     \______ \        | |      | |     | |   |  ____/   | |
+            \ \       | |      | |     | |   | |        | |
+     _      | |       | |      \ \     / /   | |        |_|
+    \ \_____/ /       | |       \ \___/ /    | |         _
+     \_______/        |_|        \_____/     |_|        |_|
+
+     Keep your account safe! Do not send any information from
+     here to anyone or paste any text here.
+
+     If someone is asking you to copy or paste text here then
+     you're giving someone access to your account, your gear,
+     and your Robux.
+
+     To learn more about keeping your account safe you can go to
+
+     https://www.roblox.com/info/account-safety @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  345544ms] [LOG] Account Security Prompt: No assignments were retrieved @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  345560ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0
+[  347664ms] [INFO] [2026-07-09T23:59:37.258Z] Information: WebSocket connected to wss://realtime-signalr.roblox.com/userhub. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  354320ms] [LOG] WARNING: Tried to load AngularJS more than once. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  354389ms] [WARNING] An error occurred! For more details, see the full error text at https://go.apollo.dev/c/err#%7B%22version%22%3A%223.14.0%22%2C%22message%22%3A104%2C%22args%22%3A%5B%22ApolloClient%22%2C%22connectToDevTools%22%2C%22Please%20use%20%60devtools.enabled%60%20instead.%22%5D%7D @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  354398ms] [WARNING] The namespace Purchasing.PurchaseDialog was not found @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  354466ms] [LOG] 
+      _______      _________      _____       ______     _
+     / _____ \    |____ ____|    / ___ \     | ____ \   | |
+    / /     \_\       | |       / /   \ \    | |   \ \  | |
+    | |               | |      / /     \ \   | |   | |  | |
+    \ \______         | |      | |     | |   | |___/ /  | |
+     \______ \        | |      | |     | |   |  ____/   | |
+            \ \       | |      | |     | |   | |        | |
+     _      | |       | |      \ \     / /   | |        |_|
+    \ \_____/ /       | |       \ \___/ /    | |         _
+     \_______/        |_|        \_____/     |_|        |_|
+
+     Keep your account safe! Do not send any information from
+     here to anyone or paste any text here.
+
+     If someone is asking you to copy or paste text here then
+     you're giving someone access to your account, your gear,
+     and your Robux.
+
+     To learn more about keeping your account safe you can go to
+
+     https://www.roblox.com/info/account-safety @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  354703ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0
+[  354916ms] [LOG] Account Security Prompt: No assignments were retrieved @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  359032ms] [INFO] [2026-07-09T23:59:48.625Z] Information: WebSocket connected to wss://realtime-signalr.roblox.com/userhub. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  361538ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/rotating-client-service/v1/heartbeat?pathname=%2Fhome:0
+[  766449ms] [LOG] WARNING: Tried to load AngularJS more than once. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  766978ms] [WARNING] An error occurred! For more details, see the full error text at https://go.apollo.dev/c/err#%7B%22version%22%3A%223.14.0%22%2C%22message%22%3A104%2C%22args%22%3A%5B%22ApolloClient%22%2C%22connectToDevTools%22%2C%22Please%20use%20%60devtools.enabled%60%20instead.%22%5D%7D @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  767001ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0
+[  767036ms] [WARNING] The namespace Purchasing.PurchaseDialog was not found @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  767332ms] [LOG] 
+      _______      _________      _____       ______     _
+     / _____ \    |____ ____|    / ___ \     | ____ \   | |
+    / /     \_\       | |       / /   \ \    | |   \ \  | |
+    | |               | |      / /     \ \   | |   | |  | |
+    \ \______         | |      | |     | |   | |___/ /  | |
+     \______ \        | |      | |     | |   |  ____/   | |
+            \ \       | |      | |     | |   | |        | |
+     _      | |       | |      \ \     / /   | |        |_|
+    \ \_____/ /       | |       \ \___/ /    | |         _
+     \_______/        |_|        \_____/     |_|        |_|
+
+     Keep your account safe! Do not send any information from
+     here to anyone or paste any text here.
+
+     If someone is asking you to copy or paste text here then
+     you're giving someone access to your account, your gear,
+     and your Robux.
+
+     To learn more about keeping your account safe you can go to
+
+     https://www.roblox.com/info/account-safety @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  767485ms] [LOG] Account Security Prompt: No assignments were retrieved @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  772007ms] [INFO] [2026-07-10T00:06:41.600Z] Information: WebSocket connected to wss://realtime-signalr.roblox.com/userhub. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  772568ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/rotating-client-service/v1/heartbeat?pathname=%2Fhome:0
+[  792420ms] [LOG] WARNING: Tried to load AngularJS more than once. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  792481ms] [WARNING] An error occurred! For more details, see the full error text at https://go.apollo.dev/c/err#%7B%22version%22%3A%223.14.0%22%2C%22message%22%3A104%2C%22args%22%3A%5B%22ApolloClient%22%2C%22connectToDevTools%22%2C%22Please%20use%20%60devtools.enabled%60%20instead.%22%5D%7D @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  792491ms] [WARNING] The namespace Purchasing.PurchaseDialog was not found @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  792574ms] [LOG] 
+      _______      _________      _____       ______     _
+     / _____ \    |____ ____|    / ___ \     | ____ \   | |
+    / /     \_\       | |       / /   \ \    | |   \ \  | |
+    | |               | |      / /     \ \   | |   | |  | |
+    \ \______         | |      | |     | |   | |___/ /  | |
+     \______ \        | |      | |     | |   |  ____/   | |
+            \ \       | |      | |     | |   | |        | |
+     _      | |       | |      \ \     / /   | |        |_|
+    \ \_____/ /       | |       \ \___/ /    | |         _
+     \_______/        |_|        \_____/     |_|        |_|
+
+     Keep your account safe! Do not send any information from
+     here to anyone or paste any text here.
+
+     If someone is asking you to copy or paste text here then
+     you're giving someone access to your account, your gear,
+     and your Robux.
+
+     To learn more about keeping your account safe you can go to
+
+     https://www.roblox.com/info/account-safety @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  792766ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0
+[  792952ms] [LOG] Account Security Prompt: No assignments were retrieved @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  797022ms] [INFO] [2026-07-10T00:07:06.616Z] Information: WebSocket connected to wss://realtime-signalr.roblox.com/userhub. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  901009ms] [LOG] WARNING: Tried to load AngularJS more than once. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  901084ms] [WARNING] An error occurred! For more details, see the full error text at https://go.apollo.dev/c/err#%7B%22version%22%3A%223.14.0%22%2C%22message%22%3A104%2C%22args%22%3A%5B%22ApolloClient%22%2C%22connectToDevTools%22%2C%22Please%20use%20%60devtools.enabled%60%20instead.%22%5D%7D @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  901091ms] [WARNING] The namespace Purchasing.PurchaseDialog was not found @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  901205ms] [LOG] 
+      _______      _________      _____       ______     _
+     / _____ \    |____ ____|    / ___ \     | ____ \   | |
+    / /     \_\       | |       / /   \ \    | |   \ \  | |
+    | |               | |      / /     \ \   | |   | |  | |
+    \ \______         | |      | |     | |   | |___/ /  | |
+     \______ \        | |      | |     | |   |  ____/   | |
+            \ \       | |      | |     | |   | |        | |
+     _      | |       | |      \ \     / /   | |        |_|
+    \ \_____/ /       | |       \ \___/ /    | |         _
+     \_______/        |_|        \_____/     |_|        |_|
+
+     Keep your account safe! Do not send any information from
+     here to anyone or paste any text here.
+
+     If someone is asking you to copy or paste text here then
+     you're giving someone access to your account, your gear,
+     and your Robux.
+
+     To learn more about keeping your account safe you can go to
+
+     https://www.roblox.com/info/account-safety @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  901323ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0
+[  901501ms] [LOG] Account Security Prompt: No assignments were retrieved @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  906293ms] [INFO] [2026-07-10T00:08:55.886Z] Information: WebSocket connected to wss://realtime-signalr.roblox.com/userhub. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  907870ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/rotating-client-service/v1/heartbeat?pathname=%2Fhome:0
+[  916864ms] [LOG] WARNING: Tried to load AngularJS more than once. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  916946ms] [WARNING] An error occurred! For more details, see the full error text at https://go.apollo.dev/c/err#%7B%22version%22%3A%223.14.0%22%2C%22message%22%3A104%2C%22args%22%3A%5B%22ApolloClient%22%2C%22connectToDevTools%22%2C%22Please%20use%20%60devtools.enabled%60%20instead.%22%5D%7D @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  916951ms] [WARNING] The namespace Purchasing.PurchaseDialog was not found @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  917026ms] [LOG] 
+      _______      _________      _____       ______     _
+     / _____ \    |____ ____|    / ___ \     | ____ \   | |
+    / /     \_\       | |       / /   \ \    | |   \ \  | |
+    | |               | |      / /     \ \   | |   | |  | |
+    \ \______         | |      | |     | |   | |___/ /  | |
+     \______ \        | |      | |     | |   |  ____/   | |
+            \ \       | |      | |     | |   | |        | |
+     _      | |       | |      \ \     / /   | |        |_|
+    \ \_____/ /       | |       \ \___/ /    | |         _
+     \_______/        |_|        \_____/     |_|        |_|
+
+     Keep your account safe! Do not send any information from
+     here to anyone or paste any text here.
+
+     If someone is asking you to copy or paste text here then
+     you're giving someone access to your account, your gear,
+     and your Robux.
+
+     To learn more about keeping your account safe you can go to
+
+     https://www.roblox.com/info/account-safety @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  917374ms] [LOG] Account Security Prompt: No assignments were retrieved @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[  917685ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0
+[  921453ms] [INFO] [2026-07-10T00:09:11.047Z] Information: WebSocket connected to wss://realtime-signalr.roblox.com/userhub. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[ 1022825ms] [LOG] WARNING: Tried to load AngularJS more than once. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[ 1022965ms] [WARNING] An error occurred! For more details, see the full error text at https://go.apollo.dev/c/err#%7B%22version%22%3A%223.14.0%22%2C%22message%22%3A104%2C%22args%22%3A%5B%22ApolloClient%22%2C%22connectToDevTools%22%2C%22Please%20use%20%60devtools.enabled%60%20instead.%22%5D%7D @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[ 1022978ms] [WARNING] The namespace Purchasing.PurchaseDialog was not found @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[ 1023085ms] [LOG] 
+      _______      _________      _____       ______     _
+     / _____ \    |____ ____|    / ___ \     | ____ \   | |
+    / /     \_\       | |       / /   \ \    | |   \ \  | |
+    | |               | |      / /     \ \   | |   | |  | |
+    \ \______         | |      | |     | |   | |___/ /  | |
+     \______ \        | |      | |     | |   |  ____/   | |
+            \ \       | |      | |     | |   | |        | |
+     _      | |       | |      \ \     / /   | |        |_|
+    \ \_____/ /       | |       \ \___/ /    | |         _
+     \_______/        |_|        \_____/     |_|        |_|
+
+     Keep your account safe! Do not send any information from
+     here to anyone or paste any text here.
+
+     If someone is asking you to copy or paste text here then
+     you're giving someone access to your account, your gear,
+     and your Robux.
+
+     To learn more about keeping your account safe you can go to
+
+     https://www.roblox.com/info/account-safety @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[ 1023665ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/user-heartbeats-api/pulse:0
+[ 1023762ms] [LOG] Account Security Prompt: No assignments were retrieved @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[ 1027186ms] [INFO] [2026-07-10T00:10:56.779Z] Information: WebSocket connected to wss://realtime-signalr.roblox.com/userhub. @ https://js.rbxcdn.com/7e3acadef63eb23dd02929eb5e500214e9a8e6400fd42d7a2b35133fc009e0d3-Sentry.js:0
+[ 1034488ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://apis.roblox.com/rotating-client-service/v1/heartbeat?pathname=%2Fhome:0

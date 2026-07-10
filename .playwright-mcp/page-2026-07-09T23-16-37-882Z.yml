@@ -1,0 +1,104 @@
+- generic [ref=f41e2]:
+  - generic:
+    - navigation [ref=f41e3]:
+      - generic [ref=f41e4]:
+        - generic [ref=f41e5]:
+          - button "Skip to Main Content" [ref=f41e6] [cursor=pointer]
+          - link [ref=f41e8] [cursor=pointer]:
+            - /url: /home
+        - list [ref=f41e10]:
+          - listitem [ref=f41e11]:
+            - link "Charts" [ref=f41e12] [cursor=pointer]:
+              - /url: /charts
+          - listitem [ref=f41e13]:
+            - link "Marketplace" [ref=f41e14] [cursor=pointer]:
+              - /url: /catalog
+          - listitem [ref=f41e15]:
+            - link "Create" [ref=f41e16] [cursor=pointer]:
+              - /url: https://create.roblox.com/
+          - listitem [ref=f41e17]:
+            - link "Robux" [ref=f41e19] [cursor=pointer]:
+              - /url: https://www.roblox.com/upgrades/robux?ctx=navpopover
+        - generic:
+          - search [ref=f41e20]:
+            - generic [ref=f41e21]:
+              - searchbox "Search" [ref=f41e22]
+              - button [ref=f41e23] [cursor=pointer]
+          - list [ref=f41e26]:
+            - link "Mat" [ref=f41e28] [cursor=pointer]:
+              - /url: https://www.roblox.com/users/428084836/profile
+            - listitem [ref=f41e32]:
+              - button "Notifications" [ref=f41e33] [cursor=pointer]
+            - listitem [ref=f41e38]
+            - listitem [ref=f41e39]:
+              - button "Settings" [ref=f41e40] [cursor=pointer]
+    - generic [ref=f41e44]:
+      - navigation [ref=f41e47]:
+        - list [ref=f41e48]:
+          - listitem [ref=f41e49]:
+            - link "Mat" [ref=f41e50] [cursor=pointer]:
+              - /url: /users/profile
+          - listitem [ref=f41e57]:
+            - link "Home" [ref=f41e58] [cursor=pointer]:
+              - /url: https://www.roblox.com/home
+          - listitem [ref=f41e61]:
+            - link "Profile" [ref=f41e62] [cursor=pointer]:
+              - /url: https://www.roblox.com/users/profile
+          - listitem [ref=f41e65]:
+            - link "Roblox Plus" [ref=f41e66] [cursor=pointer]:
+              - /url: https://www.roblox.com/plus
+          - listitem [ref=f41e69]:
+            - link "Messages" [ref=f41e70] [cursor=pointer]:
+              - /url: https://www.roblox.com/my/messages/#!/inbox
+          - listitem [ref=f41e73]:
+            - link "Friends" [ref=f41e74] [cursor=pointer]:
+              - /url: https://www.roblox.com/users/friends
+          - listitem [ref=f41e77]:
+            - link "Avatar" [ref=f41e78] [cursor=pointer]:
+              - /url: https://www.roblox.com/my/avatar
+          - listitem [ref=f41e81]:
+            - link "Inventory" [ref=f41e82] [cursor=pointer]:
+              - /url: https://www.roblox.com/users/inventory
+      - separator [ref=f41e85]
+  - main [ref=f41e86]:
+    - heading "Home" [level=1] [ref=f41e91]
+  - contentinfo [ref=f41e120]:
+    - generic [ref=f41e121]:
+      - list [ref=f41e122]:
+        - listitem [ref=f41e123]:
+          - link "About Us" [ref=f41e124] [cursor=pointer]:
+            - /url: https://www.roblox.com/info/about-us?locale=en_us
+        - listitem [ref=f41e125]:
+          - link "Jobs" [ref=f41e126] [cursor=pointer]:
+            - /url: https://www.roblox.com/info/jobs?locale=en_us
+        - listitem [ref=f41e127]:
+          - link "Blog" [ref=f41e128] [cursor=pointer]:
+            - /url: https://www.roblox.com/info/blog?locale=en_us
+        - listitem [ref=f41e129]:
+          - link "Parents" [ref=f41e130] [cursor=pointer]:
+            - /url: https://www.roblox.com/info/parents?locale=en_us
+        - listitem [ref=f41e131]:
+          - link "Buy Gift Cards" [ref=f41e132] [cursor=pointer]:
+            - /url: https://www.roblox.com/giftcards?locale=en_us
+        - listitem [ref=f41e133]:
+          - link "Help" [ref=f41e134] [cursor=pointer]:
+            - /url: https://www.roblox.com/info/help?locale=en_us
+        - listitem [ref=f41e135]:
+          - link "Terms" [ref=f41e136] [cursor=pointer]:
+            - /url: https://www.roblox.com/info/terms?locale=en_us
+        - listitem [ref=f41e137]:
+          - link "Accessibility" [ref=f41e138] [cursor=pointer]:
+            - /url: https://www.roblox.com/info/accessibility?locale=en_us
+        - listitem [ref=f41e139]:
+          - link "Privacy" [ref=f41e140] [cursor=pointer]:
+            - /url: https://www.roblox.com/info/privacy?locale=en_us
+        - listitem [ref=f41e141]:
+          - link "Your Privacy Choices" [ref=f41e142] [cursor=pointer]:
+            - /url: https://www.roblox.com/my/account#!/privacy?locale=en_us
+        - listitem [ref=f41e143]:
+          - link "Sitemap" [ref=f41e144] [cursor=pointer]:
+            - /url: https://www.roblox.com/sitemap?locale=en_us
+        - listitem
+      - generic [ref=f41e145]:
+        - progressbar [ref=f41e147]
+        - paragraph [ref=f41e152]: ©2026 Roblox Corporation. Roblox, the Roblox logo and Powering Imagination are among our registered and unregistered trademarks in the U.S. and other countries.

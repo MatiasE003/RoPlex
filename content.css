@@ -1,0 +1,63 @@
+html.roblox-extension-pending #HomeContainer {
+  visibility: hidden;
+}
+
+.people-list-header .see-all-link-icon,
+.friends-carousel-tile > #friend-tile-button:not(.options-dropdown) {
+  display: none !important;
+}
+
+.friends-carousel-tile #friend-tile-button.options-dropdown {
+  display: block !important;
+}
+
+.roblox-extension-home-order {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.roblox-extension-home-order .friend-carousel-container {
+  order: 0 !important;
+}
+
+.roblox-extension-home-order .roblox-extension-continue-grid {
+  order: 1 !important;
+}
+
+.roblox-extension-home-order .roblox-extension-recommended-section {
+  order: 2 !important;
+}
+
+.roblox-extension-home-order > * {
+  order: 3;
+}
+
+.roblox-extension-continue-grid .horizontal-scroller,
+.roblox-extension-continue-grid .horizontal-scroll-window {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.roblox-extension-continue-grid .home-page-carousel {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+  overflow: visible !important;
+  transform: none !important;
+  white-space: normal !important;
+}
+
+.roblox-extension-continue-grid .home-page-carousel > li {
+  float: none !important;
+  margin: 0 !important;
+}
+
+.roblox-extension-continue-grid .home-page-carousel > li:nth-child(n + 41) {
+  display: none !important;
+}
+
+.roblox-extension-continue-grid .horizontal-scroll-arrow,
+.roblox-extension-continue-grid .scroll-arrow,
+.roblox-extension-continue-grid .carousel-controls {
+  display: none !important;
+}
