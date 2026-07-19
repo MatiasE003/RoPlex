@@ -10,9 +10,6 @@ const friendsSeeAllSelector = ".people-list-header .see-all-link-icon";
 const friendsAddTileSelector =
   ".friends-carousel-tile:has(> #friend-tile-button:not(.options-dropdown))";
 const friendsControlsSelector = `${friendsSeeAllSelector}, ${friendsAddTileSelector}`;
-const friendsCacheKey = "roblox-extension:friends-section:v1";
-const friendsCacheTtl = 6 * 60 * 60 * 1000;
-const cachedFriendsSectionSelector = "[data-roblox-extension-friends-cache]";
 
 const blockedUrls = new Set(
   [
@@ -31,9 +28,6 @@ let homeCleaned = false;
 let updateScheduled = false;
 let observer;
 let stopObserverTimer;
-let cachedFriendsRoot;
-let cachedFriendsSection;
-let cachedFriendsRestored = false;
 
 function normalizeUrl(url) {
   try {
@@ -89,133 +83,28 @@ function readHomeSections() {
   return sections;
 }
 
-function isCachedFriendsElement(element) {
-  return Boolean(element?.closest(cachedFriendsSectionSelector));
-}
-
-function getActualFriendsRoot() {
-  if (
-    cachedFriendsRoot?.isConnected &&
-    cachedFriendsRoot.matches(friendsRootSelector) &&
-    !isCachedFriendsElement(cachedFriendsRoot)
-  ) {
-    return cachedFriendsRoot;
-  }
-
-  return Array.from(document.querySelectorAll(friendsRootSelector)).find(
-    (root) => !isCachedFriendsElement(root),
-  );
-}
-
-function readCachedFriendsSectionHtml() {
-  try {
-    const cachedValue = localStorage.getItem(friendsCacheKey);
-
-    if (!cachedValue) {
-      return "";
-    }
-
-    const cachedFriends = JSON.parse(cachedValue);
-
-    if (
-      typeof cachedFriends.html !== "string" ||
-      typeof cachedFriends.savedAt !== "number" ||
-      Date.now() - cachedFriends.savedAt > friendsCacheTtl
-    ) {
-      localStorage.removeItem(friendsCacheKey);
-      return "";
-    }
-
-    return cachedFriends.html;
-  } catch {
-    return "";
-  }
-}
-
-function writeCachedFriendsSection(section) {
-  try {
-    localStorage.setItem(
-      friendsCacheKey,
-      JSON.stringify({
-        html: section.outerHTML,
-        savedAt: Date.now(),
-      }),
-    );
-  } catch {
-    // localStorage can be unavailable or full; the extension still works without it.
-  }
-}
-
-function restoreCachedFriendsSection() {
-  if (
-    cachedFriendsRestored ||
-    getActualFriendsRoot() ||
-    document.querySelector(cachedFriendsSectionSelector)
-  ) {
-    return;
-  }
-
-  const cachedHtml = readCachedFriendsSectionHtml();
-  const firstHomeSection = document.querySelector(
-    homeHeaderSelector,
-  )?.parentElement;
-  const homeSectionsParent = firstHomeSection?.parentElement;
-
-  if (!cachedHtml || !homeSectionsParent) {
-    return;
-  }
-
-  const template = document.createElement("template");
-  template.innerHTML = cachedHtml.trim();
-
-  const cachedSection = template.content.firstElementChild;
-
-  if (!cachedSection) {
-    return;
-  }
-
-  cachedSection.setAttribute("data-roblox-extension-friends-cache", "true");
-  homeSectionsParent.insertBefore(
-    cachedSection,
-    homeSectionsParent.firstElementChild,
-  );
-  cachedFriendsRestored = true;
-}
-
 function removeFriendsButtons() {
   if (friendsCleaned) {
     return;
   }
 
-  cachedFriendsRoot = getActualFriendsRoot();
+  const friendsRoot = document.querySelector(friendsRootSelector);
 
-  if (!cachedFriendsRoot) {
+  if (!friendsRoot) {
     return;
   }
 
-  document.querySelector(cachedFriendsSectionSelector)?.remove();
-
-  if (
-    !cachedFriendsSection?.isConnected ||
-    !cachedFriendsSection.contains(cachedFriendsRoot) ||
-    isCachedFriendsElement(cachedFriendsSection)
-  ) {
-    cachedFriendsSection =
-      cachedFriendsRoot.closest(friendsSectionSelector) ?? cachedFriendsRoot;
-  }
-
-  const friendsSection = cachedFriendsSection;
+  const friendsSection =
+    friendsRoot.closest(friendsSectionSelector) ?? friendsRoot;
   const seeAllLinks = friendsSection.querySelectorAll(friendsSeeAllSelector);
-  const addFriendTiles = friendsSection.querySelectorAll(friendsAddTileSelector);
+  const addFriendTiles = friendsSection.querySelectorAll(
+    friendsAddTileSelector,
+  );
 
   seeAllLinks.forEach((link) => link.remove());
   addFriendTiles.forEach((tile) => tile.remove());
 
   friendsCleaned = !friendsSection.querySelector(friendsControlsSelector);
-
-  if (friendsCleaned) {
-    writeCachedFriendsSection(friendsSection);
-  }
 }
 
 function normalizeHomeSections() {
@@ -262,7 +151,10 @@ function normalizeHomeSections() {
     });
   }
 
-  if (continueSection.section.parentElement === primaryRecommended.section.parentElement) {
+  if (
+    continueSection.section.parentElement ===
+    primaryRecommended.section.parentElement
+  ) {
     primaryRecommended.section.parentElement.insertBefore(
       continueSection.section,
       primaryRecommended.section,
@@ -270,7 +162,8 @@ function normalizeHomeSections() {
   }
 
   if (primaryRecommended.grid) {
-    homeCleaned = duplicateRecommended.length > 0 || standoutSections.length > 0;
+    homeCleaned =
+      duplicateRecommended.length > 0 || standoutSections.length > 0;
     document.documentElement.classList.remove("roblox-extension-pending");
   }
 }
@@ -279,7 +172,6 @@ function updateRobloxHome() {
   updateScheduled = false;
 
   removeBlockedNavigationItems();
-  restoreCachedFriendsSection();
   removeFriendsButtons();
   normalizeHomeSections();
 
