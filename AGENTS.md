@@ -13,6 +13,11 @@
 - `server-browser.css` contains all Server Browser styling and follows Roblox's light/dark themes.
 - Do not assume a package manager, build system, test runner, or bundled entrypoint until project files are added.
 
+## Design Prototypes
+- `ideas front/` is only a container for static design ideas that may guide future extension changes. Files in this directory are references, are not production extension entrypoints, and must not be treated as implemented functionality.
+- `ideas front/adaptable-home.html` is the selected design reference for the future replacement of Roblox `/home`; the other files in `ideas front/` remain alternative or historical concepts.
+- `ideas front/adaptable-home.html` is currently a static HTML/CSS prototype with placeholder data and no application logic. Its future implementation is intended to obtain its dynamic Roblox data exclusively from public Roblox APIs.
+
 ## Verification
 - Syntax checks:
   - `node --check content.js`

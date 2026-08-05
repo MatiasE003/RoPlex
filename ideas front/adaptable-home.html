@@ -1,0 +1,1386 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Roblox Home Adaptable Concept</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23fff' d='M5 3h24v24H5z' transform='rotate(12 17 15)'/%3E%3Cpath fill='%2312181f' d='M12 10h9v9h-9z' transform='rotate(12 17 15)'/%3E%3C/svg%3E" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101318;
+        --surface: #171b21;
+        --surface-2: #1c2129;
+        --surface-3: #252b35;
+        --border: #2c333e;
+        --border-soft: rgba(255, 255, 255, 0.07);
+        --text: #f7f7f8;
+        --text-2: #c2c8d0;
+        --muted: #858d99;
+        --blue: #4f91ff;
+        --blue-soft: rgba(79, 145, 255, 0.14);
+        --green: #45d483;
+        --topbar: 48px;
+        --sidebar: 252px;
+        --radius: 10px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--bg);
+      }
+
+      body {
+        min-width: 320px;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Builder Sans", "Helvetica Neue", Arial, sans-serif;
+        font-size: 14px;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+        cursor: default;
+      }
+
+      img {
+        display: block;
+      }
+
+      .icon {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 auto;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .topbar {
+        position: fixed;
+        z-index: 30;
+        inset: 0 0 auto;
+        height: var(--topbar);
+        display: grid;
+        grid-template-columns: 156px minmax(340px, 1fr) minmax(280px, 430px);
+        align-items: center;
+        gap: 18px;
+        padding: 0 15px;
+        border-bottom: 1px solid var(--border);
+        background: #191d23;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 17px;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+      }
+
+      .brand-mark {
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        background: #fff;
+        transform: rotate(12deg);
+      }
+
+      .brand-mark::after {
+        width: 9px;
+        height: 9px;
+        background: #191d23;
+        content: "";
+      }
+
+      .primary-nav {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+      }
+
+      .primary-nav a {
+        min-width: 92px;
+        padding: 7px 16px;
+        border-radius: 7px;
+        color: var(--text-2);
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+      }
+
+      .primary-nav a:first-child {
+        background: var(--surface-3);
+        color: var(--text);
+      }
+
+      .topbar-tools {
+        display: grid;
+        grid-template-columns: minmax(150px, 1fr) auto auto auto;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .search {
+        height: 32px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        border: 1px solid #363d48;
+        border-radius: 8px;
+        background: #111419;
+        color: var(--muted);
+      }
+
+      .search .icon {
+        width: 17px;
+      }
+
+      .search input {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--text);
+      }
+
+      .search input::placeholder {
+        color: #7e8692;
+      }
+
+      .top-icon,
+      .account-button {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #d1d5db;
+      }
+
+      .top-icon .icon {
+        width: 19px;
+      }
+
+      .robux {
+        height: 30px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 0 8px;
+        border-radius: 7px;
+        color: var(--text-2);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .robux-symbol {
+        width: 14px;
+        height: 14px;
+        border: 2px solid currentColor;
+        transform: rotate(45deg);
+      }
+
+      .sidebar {
+        position: fixed;
+        z-index: 20;
+        inset: var(--topbar) auto 0 0;
+        width: var(--sidebar);
+        padding: 14px 12px;
+        border-right: 1px solid var(--border);
+        background: #14181e;
+      }
+
+      .user-summary {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        margin-bottom: 12px;
+        padding: 8px;
+        border-radius: 9px;
+      }
+
+      .avatar,
+      .friend-avatar {
+        position: relative;
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid #3b424d;
+        background: linear-gradient(145deg, #788697, #343b46);
+        color: white;
+        font-weight: 800;
+      }
+
+      .avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+      }
+
+      .user-summary strong,
+      .user-summary span {
+        display: block;
+      }
+
+      .user-summary strong {
+        font-size: 13px;
+      }
+
+      .user-summary span {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .side-nav {
+        display: grid;
+        gap: 3px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .side-nav a {
+        position: relative;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 11px;
+        border-radius: 8px;
+        color: #b5bbc4;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .side-nav a.active {
+        background: var(--blue-soft);
+        color: #fff;
+      }
+
+      .side-nav a.active::before {
+        position: absolute;
+        left: -12px;
+        width: 3px;
+        height: 24px;
+        border-radius: 0 3px 3px 0;
+        background: var(--blue);
+        content: "";
+      }
+
+      .nav-count {
+        margin-left: auto;
+        padding: 2px 7px;
+        border-radius: 12px;
+        background: var(--surface-3);
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .side-divider {
+        height: 1px;
+        margin: 13px 8px;
+        background: var(--border);
+      }
+
+      .premium-link {
+        position: absolute;
+        right: 12px;
+        bottom: 16px;
+        left: 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--text-2);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .premium-icon {
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border-radius: 7px;
+        background: #2d3541;
+      }
+
+      .premium-icon .icon {
+        width: 16px;
+      }
+
+      main {
+        margin-left: var(--sidebar);
+        padding: calc(var(--topbar) + 26px) 32px 80px;
+      }
+
+      .home-shell {
+        width: min(1320px, 100%);
+        margin: 0 auto;
+      }
+
+      .home-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 25px;
+      }
+
+      .home-heading h1 {
+        margin: 0;
+        font-size: 30px;
+        letter-spacing: -0.035em;
+      }
+
+      .home-heading p {
+        margin: 5px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .home-options {
+        display: flex;
+        gap: 7px;
+      }
+
+      .quiet-button {
+        height: 34px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 0 11px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text-2);
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .quiet-button .icon {
+        width: 16px;
+      }
+
+      .section {
+        margin-top: 36px;
+      }
+
+      .section:first-of-type {
+        margin-top: 0;
+      }
+
+      .section-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 14px;
+      }
+
+      .section-heading h2 {
+        margin: 0;
+        font-size: 19px;
+        letter-spacing: -0.02em;
+      }
+
+      .section-heading h2 span {
+        margin-left: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .see-all {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: #9da5b0;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .see-all .icon {
+        width: 14px;
+      }
+
+      .friends-strip {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(92px, 1fr));
+        gap: 10px;
+      }
+
+      .friend-card {
+        min-width: 0;
+        padding: 14px 8px 12px;
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius);
+        background: var(--surface);
+        text-align: center;
+      }
+
+      .friend-avatar {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 9px;
+        border-radius: 50%;
+        font-size: 18px;
+      }
+
+      .friend-avatar::after {
+        position: absolute;
+        right: 2px;
+        bottom: 1px;
+        width: 10px;
+        height: 10px;
+        border: 3px solid var(--surface);
+        border-radius: 50%;
+        background: var(--green);
+        content: "";
+      }
+
+      .friend-card.away .friend-avatar::after {
+        background: #89919d;
+      }
+
+      .friend-card strong,
+      .friend-card small {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .friend-card strong {
+        font-size: 12px;
+      }
+
+      .friend-card small {
+        min-height: 14px;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .friend-card {
+        position: relative;
+        z-index: 1;
+        outline: none;
+      }
+
+      .friend-card:hover,
+      .friend-card:focus {
+        z-index: 12;
+        border-color: #46505e;
+        background: var(--surface-2);
+      }
+
+      .friend-popover {
+        position: absolute;
+        z-index: 20;
+        top: calc(100% + 10px);
+        left: 50%;
+        width: 292px;
+        padding: 16px;
+        border: 1px solid #39424e;
+        border-radius: 12px;
+        background: #1b2027;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+        opacity: 0;
+        pointer-events: none;
+        text-align: left;
+        transform: translate(-50%, -6px);
+        transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+        visibility: hidden;
+      }
+
+      .friend-popover::before {
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        width: 12px;
+        height: 12px;
+        border-top: 1px solid #39424e;
+        border-left: 1px solid #39424e;
+        background: #1b2027;
+        content: "";
+        transform: translate(-50%, 6px) rotate(45deg);
+      }
+
+      .friend-popover::after {
+        position: absolute;
+        right: 0;
+        bottom: 100%;
+        left: 0;
+        height: 12px;
+        content: "";
+      }
+
+      .friend-card:hover .friend-popover,
+      .friend-card:focus .friend-popover {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translate(-50%, 0);
+        visibility: visible;
+      }
+
+      .friend-card:first-child .friend-popover,
+      .friend-card:nth-child(2) .friend-popover {
+        left: -1px;
+        transform: translateY(-6px);
+      }
+
+      .friend-card:first-child:hover .friend-popover,
+      .friend-card:first-child:focus .friend-popover,
+      .friend-card:nth-child(2):hover .friend-popover,
+      .friend-card:nth-child(2):focus .friend-popover {
+        transform: translateY(0);
+      }
+
+      .friend-card:first-child .friend-popover::before,
+      .friend-card:nth-child(2) .friend-popover::before {
+        left: 76px;
+      }
+
+      .friend-card:nth-last-child(-n + 2) .friend-popover {
+        right: -1px;
+        left: auto;
+        transform: translateY(-6px);
+      }
+
+      .friend-card:nth-last-child(-n + 2):hover .friend-popover,
+      .friend-card:nth-last-child(-n + 2):focus .friend-popover {
+        transform: translateY(0);
+      }
+
+      .friend-card:nth-last-child(-n + 2) .friend-popover::before {
+        right: 69px;
+        left: auto;
+      }
+
+      .popover-profile {
+        display: grid;
+        grid-template-columns: 46px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 11px;
+      }
+
+      .popover-avatar {
+        width: 46px;
+        height: 46px;
+        display: grid;
+        place-items: center;
+        border: 1px solid #46505d;
+        border-radius: 50%;
+        background: linear-gradient(145deg, #7d8a9b, #38414c);
+        color: white;
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .popover-name {
+        min-width: 0;
+      }
+
+      .friend-card .popover-name strong,
+      .popover-name span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .friend-card .popover-name strong {
+        font-size: 14px;
+      }
+
+      .popover-name span {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .presence-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 7px;
+        border-radius: 6px;
+        background: rgba(69, 212, 131, 0.11);
+        color: #78e6a8;
+        font-size: 9px;
+        font-style: normal;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .presence-badge::before {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--green);
+        content: "";
+      }
+
+      .presence-badge.online {
+        background: var(--blue-soft);
+        color: #84b2ff;
+      }
+
+      .presence-badge.online::before {
+        background: var(--blue);
+      }
+
+      .presence-badge.offline {
+        background: rgba(133, 141, 153, 0.12);
+        color: #9da5b0;
+      }
+
+      .presence-badge.offline::before {
+        background: #7d8590;
+      }
+
+      .account-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        margin: 15px 0;
+        padding: 12px 0;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .account-stat {
+        min-width: 0;
+        padding: 0 6px;
+        border-right: 1px solid var(--border);
+        text-align: center;
+      }
+
+      .account-stat:last-child {
+        border-right: 0;
+      }
+
+      .friend-card .account-stat b,
+      .account-stat span {
+        display: block;
+      }
+
+      .friend-card .account-stat b {
+        color: var(--text);
+        font-size: 12px;
+      }
+
+      .account-stat span {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 9px;
+      }
+
+      .account-detail {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 13px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .friend-card .account-detail b {
+        color: var(--text-2);
+        font-size: 10px;
+        font-weight: 600;
+      }
+
+      .playing-card {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        padding: 9px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: #15191f;
+      }
+
+      .playing-card img {
+        width: 48px;
+        height: 48px;
+        border-radius: 7px;
+        object-fit: cover;
+      }
+
+      .playing-copy {
+        min-width: 0;
+      }
+
+      .playing-copy span,
+      .friend-card .playing-copy strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .playing-copy span {
+        color: var(--green);
+        font-size: 9px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .friend-card .playing-copy strong {
+        margin-top: 4px;
+        font-size: 11px;
+      }
+
+      .join-button,
+      .profile-button {
+        height: 30px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 6px;
+        background: var(--blue);
+        color: white;
+        font-size: 9px;
+        font-weight: 800;
+      }
+
+      .profile-button {
+        width: 100%;
+        margin-top: 12px;
+        border: 1px solid var(--border);
+        background: var(--surface-3);
+        color: var(--text-2);
+      }
+
+      .private-activity {
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #15191f;
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.4;
+        text-align: center;
+      }
+
+      .game-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 22px 14px;
+      }
+
+      .game-card {
+        min-width: 0;
+      }
+
+      .thumbnail {
+        position: relative;
+        overflow: hidden;
+        aspect-ratio: 1 / 1;
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius);
+        background: var(--surface-2);
+      }
+
+      .thumbnail.landscape {
+        aspect-ratio: 16 / 9;
+      }
+
+      .thumbnail img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .play-overlay {
+        position: absolute;
+        right: 9px;
+        bottom: 9px;
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        background: rgba(16, 19, 24, 0.88);
+        opacity: 0;
+      }
+
+      .game-card:hover .play-overlay {
+        opacity: 1;
+      }
+
+      .play-overlay .icon {
+        width: 15px;
+        fill: currentColor;
+      }
+
+      .game-card h3 {
+        display: -webkit-box;
+        min-height: 35px;
+        margin: 9px 0 5px;
+        overflow: hidden;
+        font-size: 13px;
+        line-height: 1.35;
+        -webkit-box-orient: vertical;
+        line-clamp: 2;
+        -webkit-line-clamp: 2;
+      }
+
+      .game-stats {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .game-stats span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .game-stats .icon {
+        width: 12px;
+        height: 12px;
+      }
+
+      .wide-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 24px 14px;
+      }
+
+      .wide-grid .game-card h3 {
+        min-height: auto;
+        margin-top: 8px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      .recommendation-tools {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .filter-chip {
+        height: 30px;
+        padding: 0 11px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 600;
+      }
+
+      .filter-chip.active {
+        border-color: #526071;
+        background: var(--surface-2);
+        color: var(--text-2);
+      }
+
+      .footer {
+        margin-top: 55px;
+        padding: 25px 0;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 10px;
+        text-align: center;
+      }
+
+      .footer-links {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px 20px;
+        margin-bottom: 16px;
+        color: var(--text-2);
+        font-size: 11px;
+      }
+
+      .chat-dock {
+        position: fixed;
+        z-index: 25;
+        right: 12px;
+        bottom: 0;
+        width: 272px;
+        border: 1px solid var(--border);
+        border-bottom: 0;
+        border-radius: 9px 9px 0 0;
+        background: #1a1f26;
+        box-shadow: 0 -5px 22px rgba(0, 0, 0, 0.24);
+      }
+
+      .chat-header {
+        height: 38px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .chat-header .icon {
+        width: 17px;
+      }
+
+      .chat-header span {
+        margin-left: auto;
+        color: var(--muted);
+      }
+
+      @media (max-width: 1200px) {
+        :root {
+          --sidebar: 220px;
+        }
+
+        .topbar {
+          grid-template-columns: 130px minmax(290px, 1fr) minmax(250px, 360px);
+        }
+
+        .primary-nav a {
+          min-width: 72px;
+          padding-inline: 10px;
+        }
+
+        .game-grid {
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+        }
+
+        .friends-strip {
+          grid-template-columns: repeat(6, minmax(92px, 1fr));
+        }
+
+        .friend-card:last-child {
+          display: none;
+        }
+
+        .wide-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 900px) {
+        :root {
+          --sidebar: 76px;
+        }
+
+        .topbar {
+          grid-template-columns: 48px 1fr minmax(210px, 300px);
+        }
+
+        .brand span,
+        .user-summary div,
+        .side-nav a span:not(.nav-count),
+        .premium-link span,
+        .primary-nav a:nth-child(n + 3) {
+          display: none;
+        }
+
+        .primary-nav {
+          justify-content: flex-start;
+        }
+
+        .primary-nav a {
+          min-width: 70px;
+        }
+
+        .sidebar {
+          padding-inline: 10px;
+        }
+
+        .user-summary {
+          padding-inline: 8px;
+        }
+
+        .side-nav a {
+          justify-content: center;
+          padding: 0;
+        }
+
+        .side-nav a.active::before {
+          left: -10px;
+        }
+
+        .nav-count {
+          position: absolute;
+          top: 3px;
+          right: 2px;
+          min-width: 16px;
+          padding: 1px 4px;
+          background: var(--blue);
+          color: #fff;
+          text-align: center;
+        }
+
+        .premium-link {
+          justify-content: center;
+          padding: 8px;
+        }
+
+        .game-grid {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .friends-strip {
+          grid-template-columns: repeat(5, minmax(92px, 1fr));
+        }
+
+        .friend-card:nth-last-child(-n + 2) {
+          display: none;
+        }
+
+        .chat-dock {
+          display: none;
+        }
+      }
+
+      @media (max-width: 640px) {
+        :root {
+          --sidebar: 0px;
+          --topbar: 52px;
+        }
+
+        .topbar {
+          grid-template-columns: 34px minmax(0, 1fr) auto;
+          gap: 10px;
+          padding-inline: 12px;
+        }
+
+        .brand-mark {
+          width: 22px;
+          height: 22px;
+        }
+
+        .primary-nav {
+          display: none;
+        }
+
+        .topbar-tools {
+          grid-column: 2 / 4;
+          grid-template-columns: minmax(0, 1fr) auto auto;
+        }
+
+        .top-icon:first-of-type,
+        .robux span:last-child {
+          display: none;
+        }
+
+        .sidebar {
+          display: none;
+        }
+
+        main {
+          margin-left: 0;
+          padding: calc(var(--topbar) + 20px) 15px 60px;
+        }
+
+        .home-heading {
+          align-items: flex-start;
+          margin-bottom: 21px;
+        }
+
+        .home-heading h1 {
+          font-size: 26px;
+        }
+
+        .home-options .quiet-button:first-child {
+          display: none;
+        }
+
+        .section {
+          margin-top: 31px;
+        }
+
+        .friends-strip {
+          display: flex;
+          margin-right: -15px;
+          overflow-x: auto;
+          padding-right: 15px;
+          scrollbar-width: none;
+        }
+
+        .friend-card,
+        .friend-card:nth-last-child(-n + 2),
+        .friend-card:last-child {
+          min-width: 102px;
+          display: block;
+        }
+
+        .friend-popover,
+        .friend-card:first-child .friend-popover,
+        .friend-card:nth-child(2) .friend-popover,
+        .friend-card:nth-last-child(-n + 2) .friend-popover {
+          position: fixed;
+          top: 156px;
+          right: 15px;
+          left: 15px;
+          width: auto;
+          max-width: 360px;
+          margin: 0 auto;
+          transform: translateY(-6px);
+        }
+
+        .friend-card:hover .friend-popover,
+        .friend-card:focus .friend-popover,
+        .friend-card:first-child:hover .friend-popover,
+        .friend-card:first-child:focus .friend-popover,
+        .friend-card:nth-child(2):hover .friend-popover,
+        .friend-card:nth-child(2):focus .friend-popover,
+        .friend-card:nth-last-child(-n + 2):hover .friend-popover,
+        .friend-card:nth-last-child(-n + 2):focus .friend-popover {
+          transform: translateY(0);
+        }
+
+        .friend-popover::before {
+          display: none;
+        }
+
+        .game-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 20px 11px;
+        }
+
+        .wide-grid {
+          display: flex;
+          margin-right: -15px;
+          overflow-x: auto;
+          padding-right: 15px;
+          scrollbar-width: none;
+        }
+
+        .wide-grid .game-card {
+          min-width: 245px;
+        }
+
+        .recommendation-tools {
+          max-width: 185px;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+
+        .section-heading h2 span,
+        .see-all span {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" aria-hidden="true" style="position: absolute">
+      <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></symbol>
+      <symbol id="home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8"></path><path d="M5 10v10h14V10M9 20v-6h6v6"></path></symbol>
+      <symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></symbol>
+      <symbol id="message" viewBox="0 0 24 24"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"></path></symbol>
+      <symbol id="users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path></symbol>
+      <symbol id="avatar" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M7 14h10l2 7H5l2-7Z"></path></symbol>
+      <symbol id="box" viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Z"></path><path d="M4 7v10l8 4 8-4V7M12 11v10"></path></symbol>
+      <symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></symbol>
+      <symbol id="bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"></path></symbol>
+      <symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.4 6A7 7 0 0 0 9 7L6.5 6l-2 3.4 2 1.5a7 7 0 0 0 0 2L4.5 14l2 3.4L9 17a7 7 0 0 0 1.5.9l.3 2.6h4l.3-2.6a7 7 0 0 0 1.5-.9l2.4.5 2-3.4-2-1.2a7 7 0 0 0 .1-1Z"></path></symbol>
+      <symbol id="chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+      <symbol id="play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z"></path></symbol>
+      <symbol id="like" viewBox="0 0 24 24"><path d="M7 10v11H3V10h4Zm0 9h10a2 2 0 0 0 2-1.6l1.5-7A2 2 0 0 0 18.5 8H14l.7-3.2A2.3 2.3 0 0 0 12.5 2L7 10"></path></symbol>
+      <symbol id="people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"></circle><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M17 14a5 5 0 0 1 4 5v1"></path></symbol>
+      <symbol id="premium" viewBox="0 0 24 24"><path d="m12 3 3 6 6 .8-4.5 4.5 1.1 6.2L12 17.6l-5.6 2.9 1.1-6.2L3 9.8 9 9l3-6Z"></path></symbol>
+      <symbol id="filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"></path></symbol>
+    </svg>
+
+    <header class="topbar" data-component="global-navigation">
+      <a class="brand" href="#" aria-label="Roblox Home"><i class="brand-mark"></i><span>ROBLOX</span></a>
+      <nav class="primary-nav" aria-label="Roblox sections"><a href="#">Home</a><a href="#recommended">Charts</a><a href="#">Marketplace</a><a href="#">Create</a></nav>
+      <div class="topbar-tools">
+        <label class="search"><svg class="icon"><use href="#search"></use></svg><input type="search" placeholder="Search" /></label>
+        <button class="top-icon" aria-label="Notifications"><svg class="icon"><use href="#bell"></use></svg></button>
+        <div class="robux" aria-label="Robux balance"><i class="robux-symbol"></i><span>1,240</span></div>
+        <button class="top-icon" aria-label="Settings"><svg class="icon"><use href="#gear"></use></svg></button>
+      </div>
+    </header>
+
+    <aside class="sidebar" data-component="sidebar-navigation">
+      <div class="user-summary" data-entity="authenticated-user"><div class="avatar">M</div><div><strong>Mat</strong><span>@matiasbuilds</span></div></div>
+      <nav aria-label="Account navigation">
+        <ul class="side-nav">
+          <li><a class="active" href="#"><svg class="icon"><use href="#home"></use></svg><span>Home</span></a></li>
+          <li><a href="#"><svg class="icon"><use href="#user"></use></svg><span>Profile</span></a></li>
+          <li><a href="#"><svg class="icon"><use href="#message"></use></svg><span>Messages</span><b class="nav-count">2</b></a></li>
+          <li><a href="#friends"><svg class="icon"><use href="#users"></use></svg><span>Friends</span><b class="nav-count">5</b></a></li>
+          <li><a href="#"><svg class="icon"><use href="#avatar"></use></svg><span>Avatar</span></a></li>
+          <li><a href="#"><svg class="icon"><use href="#box"></use></svg><span>Inventory</span></a></li>
+          <li><a href="#"><svg class="icon"><use href="#more"></use></svg><span>More</span></a></li>
+        </ul>
+      </nav>
+      <div class="side-divider"></div>
+      <a class="premium-link" href="#"><i class="premium-icon"><svg class="icon"><use href="#premium"></use></svg></i><span>Get Premium</span></a>
+    </aside>
+
+    <main id="main-content">
+      <div class="home-shell">
+        <header class="home-heading">
+          <div><h1>Home</h1><p>Continue playing or find your next experience.</p></div>
+          <div class="home-options"><button class="quiet-button"><svg class="icon"><use href="#filter"></use></svg>Content preferences</button><button class="quiet-button" aria-label="Home settings"><svg class="icon"><use href="#gear"></use></svg></button></div>
+        </header>
+
+        <section class="section" id="friends" data-component="friends-list" data-entity="user-presence" aria-labelledby="friends-title">
+          <div class="section-heading"><h2 id="friends-title">Friends <span>5</span></h2><a class="see-all" href="#"><span>See all</span><svg class="icon"><use href="#chevron"></use></svg></a></div>
+          <div class="friends-strip">
+            <article class="friend-card" tabindex="0" data-user-id="344719030" aria-describedby="friend-irisita-details">
+              <div class="friend-avatar">I</div><strong>Irisita</strong><small>Berry Avenue</small>
+              <aside class="friend-popover" id="friend-irisita-details" role="tooltip" data-component="friend-profile-preview">
+                <div class="popover-profile"><div class="popover-avatar">I</div><div class="popover-name"><strong>Irisita</strong><span>@irisita_heart</span></div><i class="presence-badge">Playing</i></div>
+                <div class="account-stats"><div class="account-stat"><b>218</b><span>Friends</span></div><div class="account-stat"><b>1.8K</b><span>Followers</span></div><div class="account-stat"><b>146</b><span>Following</span></div></div>
+                <div class="account-detail"><span>Joined Roblox</span><b>Mar 18, 2019</b></div>
+                <div class="playing-card"><img src="https://tr.rbxcdn.com/180DAY-f31be90c65e256534dd6bcf29f2a84a4/384/216/Image/Jpeg/noFilter" alt="Berry Avenue thumbnail" /><div class="playing-copy"><span>Playing now</span><strong>Berry Avenue RP</strong></div><button class="join-button">Join</button></div>
+                <button class="profile-button">View profile</button>
+              </aside>
+            </article>
+            <article class="friend-card" tabindex="0" data-user-id="7207685337" aria-describedby="friend-mat-details">
+              <div class="friend-avatar">M</div><strong>Mat</strong><small>Jailbreak</small>
+              <aside class="friend-popover" id="friend-mat-details" role="tooltip" data-component="friend-profile-preview">
+                <div class="popover-profile"><div class="popover-avatar">M</div><div class="popover-name"><strong>Mat</strong><span>@mat_builder</span></div><i class="presence-badge">Playing</i></div>
+                <div class="account-stats"><div class="account-stat"><b>74</b><span>Friends</span></div><div class="account-stat"><b>532</b><span>Followers</span></div><div class="account-stat"><b>39</b><span>Following</span></div></div>
+                <div class="account-detail"><span>Joined Roblox</span><b>Nov 02, 2023</b></div>
+                <div class="playing-card"><img src="https://tr.rbxcdn.com/180DAY-e60a6d7ad76e1c8bc3fb2baab786add3/256/256/Image/Webp/noFilter" alt="Jailbreak thumbnail" /><div class="playing-copy"><span>Playing now</span><strong>Jailbreak</strong></div><button class="join-button">Join</button></div>
+                <button class="profile-button">View profile</button>
+              </aside>
+            </article>
+            <article class="friend-card" tabindex="0" data-user-id="5831111693" aria-describedby="friend-jeimmy-details">
+              <div class="friend-avatar">J</div><strong>xJEIMMYx117</strong><small>World // Zero</small>
+              <aside class="friend-popover" id="friend-jeimmy-details" role="tooltip" data-component="friend-profile-preview">
+                <div class="popover-profile"><div class="popover-avatar">J</div><div class="popover-name"><strong>xJEIMMYx117</strong><span>@xJEIMMYx117</span></div><i class="presence-badge">Playing</i></div>
+                <div class="account-stats"><div class="account-stat"><b>126</b><span>Friends</span></div><div class="account-stat"><b>904</b><span>Followers</span></div><div class="account-stat"><b>88</b><span>Following</span></div></div>
+                <div class="account-detail"><span>Joined Roblox</span><b>Jul 11, 2021</b></div>
+                <div class="playing-card"><img src="https://tr.rbxcdn.com/180DAY-e7a15d309ce074a8883e9f759220cf78/256/256/Image/Webp/noFilter" alt="World Zero thumbnail" /><div class="playing-copy"><span>Playing now</span><strong>World // Zero</strong></div><button class="join-button">Join</button></div>
+                <button class="profile-button">View profile</button>
+              </aside>
+            </article>
+            <article class="friend-card away" tabindex="0" data-user-id="10482476" aria-describedby="friend-alex-details">
+              <div class="friend-avatar">A</div><strong>Alex</strong><small>Online</small>
+              <aside class="friend-popover" id="friend-alex-details" role="tooltip" data-component="friend-profile-preview">
+                <div class="popover-profile"><div class="popover-avatar">A</div><div class="popover-name"><strong>Alex</strong><span>@alex_rbx</span></div><i class="presence-badge online">Online</i></div>
+                <div class="account-stats"><div class="account-stat"><b>302</b><span>Friends</span></div><div class="account-stat"><b>4.2K</b><span>Followers</span></div><div class="account-stat"><b>211</b><span>Following</span></div></div>
+                <div class="account-detail"><span>Joined Roblox</span><b>Jan 27, 2017</b></div>
+                <div class="private-activity">Online on Roblox, not currently in an experience.</div>
+                <button class="profile-button">View profile</button>
+              </aside>
+            </article>
+            <article class="friend-card" tabindex="0" data-user-id="88274519" aria-describedby="friend-luna-details">
+              <div class="friend-avatar">L</div><strong>Luna</strong><small>Playing</small>
+              <aside class="friend-popover" id="friend-luna-details" role="tooltip" data-component="friend-profile-preview">
+                <div class="popover-profile"><div class="popover-avatar">L</div><div class="popover-name"><strong>Luna</strong><span>@luna_stars</span></div><i class="presence-badge">Playing</i></div>
+                <div class="account-stats"><div class="account-stat"><b>91</b><span>Friends</span></div><div class="account-stat"><b>12.6K</b><span>Followers</span></div><div class="account-stat"><b>64</b><span>Following</span></div></div>
+                <div class="account-detail"><span>Joined Roblox</span><b>Sep 06, 2018</b></div>
+                <div class="private-activity">This user's current experience is hidden by their privacy settings.</div>
+                <button class="profile-button">View profile</button>
+              </aside>
+            </article>
+            <article class="friend-card away" tabindex="0" data-user-id="49570231" aria-describedby="friend-riley-details">
+              <div class="friend-avatar">R</div><strong>Riley</strong><small>Offline</small>
+              <aside class="friend-popover" id="friend-riley-details" role="tooltip" data-component="friend-profile-preview">
+                <div class="popover-profile"><div class="popover-avatar">R</div><div class="popover-name"><strong>Riley</strong><span>@riley_dev</span></div><i class="presence-badge offline">Offline</i></div>
+                <div class="account-stats"><div class="account-stat"><b>48</b><span>Friends</span></div><div class="account-stat"><b>387</b><span>Followers</span></div><div class="account-stat"><b>22</b><span>Following</span></div></div>
+                <div class="account-detail"><span>Joined Roblox</span><b>May 14, 2020</b></div>
+                <button class="profile-button">View profile</button>
+              </aside>
+            </article>
+            <article class="friend-card away" tabindex="0" data-user-id="71930542" aria-describedby="friend-sam-details">
+              <div class="friend-avatar">S</div><strong>Sam</strong><small>Offline</small>
+              <aside class="friend-popover" id="friend-sam-details" role="tooltip" data-component="friend-profile-preview">
+                <div class="popover-profile"><div class="popover-avatar">S</div><div class="popover-name"><strong>Sam</strong><span>@sam_playz</span></div><i class="presence-badge offline">Offline</i></div>
+                <div class="account-stats"><div class="account-stat"><b>156</b><span>Friends</span></div><div class="account-stat"><b>2.1K</b><span>Followers</span></div><div class="account-stat"><b>103</b><span>Following</span></div></div>
+                <div class="account-detail"><span>Joined Roblox</span><b>Dec 22, 2016</b></div>
+                <button class="profile-button">View profile</button>
+              </aside>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" data-component="experience-list" data-list-type="continue" aria-labelledby="continue-title">
+          <div class="section-heading"><h2 id="continue-title">Continue</h2><a class="see-all" href="#"><span>See all</span><svg class="icon"><use href="#chevron"></use></svg></a></div>
+          <div class="game-grid">
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-da96bf9d2751d0d26f82ac3cafc6368e/256/256/Image/Webp/noFilter" alt="Shred the Secrets" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>[SAVING] Shred the Secrets</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>86%</span><span><svg class="icon"><use href="#people"></use></svg>3.2K</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-e7a15d309ce074a8883e9f759220cf78/256/256/Image/Webp/noFilter" alt="World Zero Anime RPG" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>World // Zero: Anime RPG</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>94%</span><span><svg class="icon"><use href="#people"></use></svg>1.9K</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-009a2c457d089b9aa3eb8c6ac07c0f93/256/256/Image/Webp/noFilter" alt="Clone Mining Tycoon" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>Clone Mining Tycoon [ALPHA]</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>84%</span><span><svg class="icon"><use href="#people"></use></svg>296</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-340fb8bba1a5ef7755fc1be9072938ff/256/256/Image/Webp/noFilter" alt="Warrior Evolution" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>+1 Warrior Evolution</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>95%</span><span><svg class="icon"><use href="#people"></use></svg>20</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-feff2530b121cbd6bb978271a16a56e4/256/256/Image/Webp/noFilter" alt="Moving Out" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>Moving Out! [MANSION]</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>79%</span><span><svg class="icon"><use href="#people"></use></svg>2.2K</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-3d8fd895f358e86fb886c17fe06201d8/256/256/Image/Webp/noFilter" alt="Sell Lemons" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>Sell Lemons</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>94%</span><span><svg class="icon"><use href="#people"></use></svg>17.2K</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-8970cd66961dd703238db25a18f3a4b4/256/256/Image/Webp/noFilter" alt="Drain the Lake" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>Drain the Lake</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>95%</span><span><svg class="icon"><use href="#people"></use></svg>3.8K</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-e60a6d7ad76e1c8bc3fb2baab786add3/256/256/Image/Webp/noFilter" alt="Stepford County Railway" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>Stepford County Railway</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>85%</span><span><svg class="icon"><use href="#people"></use></svg>176</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-0fe530d9b4419ed4058fdf31e504df61/256/256/Image/Webp/noFilter" alt="Anime Warriors III" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>Anime Warriors III</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>96%</span><span><svg class="icon"><use href="#people"></use></svg>3.4K</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-6f04369060213cc72bbec0d8dd5a47a4/256/256/GameIcon8/Webp/noFilter" alt="Unnamed experience" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>Unnamed</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>--</span><span><svg class="icon"><use href="#people"></use></svg>0</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-da96bf9d2751d0d26f82ac3cafc6368e/256/256/Image/Webp/noFilter" alt="Shred the Secrets" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>Shred the Secrets</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>86%</span><span><svg class="icon"><use href="#people"></use></svg>3.2K</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-e7a15d309ce074a8883e9f759220cf78/256/256/Image/Webp/noFilter" alt="World Zero" /><i class="play-overlay"><svg class="icon"><use href="#play"></use></svg></i></div><h3>World // Zero</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>94%</span><span><svg class="icon"><use href="#people"></use></svg>1.9K</span></div></article>
+          </div>
+        </section>
+
+        <section class="section" id="recommended" data-component="experience-list" data-list-type="recommendations" aria-labelledby="recommended-title">
+          <div class="section-heading"><h2 id="recommended-title">Recommended For You</h2><div class="recommendation-tools"><button class="filter-chip active">All</button><button class="filter-chip">Adventure</button><button class="filter-chip">Tycoon</button><a class="see-all" href="#"><span>See all</span><svg class="icon"><use href="#chevron"></use></svg></a></div></div>
+          <div class="wide-grid">
+            <article class="game-card" data-entity="experience"><div class="thumbnail landscape"><img src="https://tr.rbxcdn.com/180DAY-e7cd7587165c922fd7164375fdd5285f/384/216/Image/Jpeg/noFilter" alt="RNG vs Fruit" /></div><h3>RNG vs Fruit</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>81%</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail landscape"><img src="https://tr.rbxcdn.com/180DAY-07cd62dbd9a35df26635afddbe1faad2/384/216/Image/Jpeg/noFilter" alt="Loot Evo" /></div><h3>+1 Loot Evo</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>94%</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail landscape"><img src="https://tr.rbxcdn.com/180DAY-50a11c3fb59b2af5bb895e1467249de0/384/216/Image/Jpeg/noFilter" alt="2 Player Evolution Tycoon" /></div><h3>2 PLAYER Evolution Tycoon</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>76%</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail landscape"><img src="https://tr.rbxcdn.com/180DAY-e39cb1c769b391e77262fce64d1fd9e1/384/216/Image/Jpeg/noFilter" alt="Nightbloom" /></div><h3>Nightbloom [V1.7 UPDATE]</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>73%</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail landscape"><img src="https://tr.rbxcdn.com/180DAY-f31be90c65e256534dd6bcf29f2a84a4/384/216/Image/Jpeg/noFilter" alt="Build a House" /></div><h3>Build a House</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>84%</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail landscape"><img src="https://tr.rbxcdn.com/180DAY-23088910b4742cc9b0c2ce9f8504035c/384/216/Image/Jpeg/noFilter" alt="Clear the Forest" /></div><h3>Clear the Forest!</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>91%</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail landscape"><img src="https://tr.rbxcdn.com/180DAY-ccf66fd671595e8029dd5af118708830/384/216/Image/Jpeg/noFilter" alt="Airport Tycoon" /></div><h3>Airport Tycoon</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>94%</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail landscape"><img src="https://tr.rbxcdn.com/180DAY-1bce3f52f972c88694abb1d41e418b82/384/216/Image/Jpeg/noFilter" alt="Cut Grass Adventure" /></div><h3>+1 Cut Grass Adventure</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>96%</span></div></article>
+          </div>
+        </section>
+
+        <section class="section" data-component="experience-list" data-list-type="favorites" aria-labelledby="favorites-title">
+          <div class="section-heading"><h2 id="favorites-title">Favorites</h2><a class="see-all" href="#"><span>See all</span><svg class="icon"><use href="#chevron"></use></svg></a></div>
+          <div class="game-grid">
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-e7a15d309ce074a8883e9f759220cf78/256/256/Image/Webp/noFilter" alt="World Zero" /></div><h3>World // Zero</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>94%</span><span><svg class="icon"><use href="#people"></use></svg>1.9K</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-e60a6d7ad76e1c8bc3fb2baab786add3/256/256/Image/Webp/noFilter" alt="Stepford County Railway" /></div><h3>Stepford County Railway</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>85%</span><span><svg class="icon"><use href="#people"></use></svg>176</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-0fe530d9b4419ed4058fdf31e504df61/256/256/Image/Webp/noFilter" alt="Anime Warriors III" /></div><h3>Anime Warriors III</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>96%</span><span><svg class="icon"><use href="#people"></use></svg>3.4K</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-3d8fd895f358e86fb886c17fe06201d8/256/256/Image/Webp/noFilter" alt="Sell Lemons" /></div><h3>Sell Lemons</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>94%</span><span><svg class="icon"><use href="#people"></use></svg>17.2K</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-8970cd66961dd703238db25a18f3a4b4/256/256/Image/Webp/noFilter" alt="Drain the Lake" /></div><h3>Drain the Lake</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>95%</span><span><svg class="icon"><use href="#people"></use></svg>3.8K</span></div></article>
+            <article class="game-card" data-entity="experience"><div class="thumbnail"><img src="https://tr.rbxcdn.com/180DAY-009a2c457d089b9aa3eb8c6ac07c0f93/256/256/Image/Webp/noFilter" alt="Clone Mining Tycoon" /></div><h3>Clone Mining Tycoon</h3><div class="game-stats"><span><svg class="icon"><use href="#like"></use></svg>84%</span><span><svg class="icon"><use href="#people"></use></svg>296</span></div></article>
+          </div>
+        </section>
+
+        <footer class="footer">
+          <div class="footer-links"><a href="#">About Us</a><a href="#">Jobs</a><a href="#">Newsroom</a><a href="#">Parents</a><a href="#">Gift Cards</a><a href="#">Help</a><a href="#">Terms</a><a href="#">Accessibility</a><a href="#">Privacy</a></div>
+          <div>Static design reference. Roblox and its marks belong to Roblox Corporation.</div>
+        </footer>
+      </div>
+    </main>
+
+    <aside class="chat-dock" data-component="chat-dock"><div class="chat-header"><svg class="icon"><use href="#message"></use></svg>Chat <span>5</span></div></aside>
+  </body>
+</html>
