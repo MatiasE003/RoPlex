@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Roblox Extension",
-  "version": "0.4.4",
+  "version": "0.7.0",
   "description": "Custom Roblox home and geolocated public server browser.",
   "permissions": [
     "declarativeNetRequestWithHostAccess",
@@ -10,8 +10,12 @@
   ],
   "host_permissions": [
     "https://www.roblox.com/*",
+    "https://friends.roblox.com/*",
     "https://games.roblox.com/*",
     "https://gamejoin.roblox.com/*",
+    "https://presence.roblox.com/*",
+    "https://thumbnails.roblox.com/*",
+    "https://users.roblox.com/*",
     "https://ipwho.is/*"
   ],
   "background": {
@@ -44,6 +48,7 @@
     },
     {
       "matches": [
+        "https://www.roblox.com/home",
         "https://www.roblox.com/games/*",
         "https://www.roblox.com/*/games/*"
       ],

@@ -9,10 +9,12 @@
   window.__robloxExtensionServerBridgeInstalled = true;
 
   document.addEventListener(JOIN_REQUEST_EVENT, async (event) => {
+    let jobId = null;
+
     try {
       const detail = JSON.parse(event.detail);
       const placeId = Number(detail.placeId);
-      const jobId = detail.jobId;
+      jobId = detail.jobId;
 
       if (
         !Number.isSafeInteger(placeId) ||
@@ -28,6 +30,7 @@
       dispatchResult({ jobId, ok: true });
     } catch (error) {
       dispatchResult({
+        jobId,
         message:
           error instanceof Error
             ? error.message
