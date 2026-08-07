@@ -22,6 +22,7 @@ const DATA_CENTER_LOCATION_CACHE_KEY_PREFIX =
 const DATA_CENTER_LOCATION_CACHE_VERSION = 1;
 const GEOLOCATION_CACHE_KEY_PREFIX = "roblox-server-geolocation:";
 const GEOLOCATION_CACHE_VERSION = 1;
+const HOME_DISCOVERY_CACHE_TTL_MS = 30 * 1000;
 const HOME_FRIEND_PREVIEW_CACHE_TTL_MS = 5 * 60 * 1000;
 let lastCacheCleanupAt = 0;
 let currentRegionChecksPerSecond =
@@ -37,6 +38,8 @@ let nextGeolocationCheckAt = 0;
 const geolocationRequests = new Map();
 const dataCenterLocationRequests = new Map();
 const homeFriendPreviewCache = new Map();
+let homeDiscoveryCache = null;
+let homeDiscoveryRequest = null;
 
 class ApiError extends Error {
   constructor(code, message, details = {}) {
@@ -81,6 +84,22 @@ async function handleMessage(message, sender) {
       parseUserId(message.userId),
       parseOptionalUniverseId(message.universeId),
     );
+  }
+
+  if (message.type === "SEARCH_HOME_USERS") {
+    return searchHomeUsers(parseHomeSearchQuery(message.query));
+  }
+
+  if (message.type === "GET_HOME_CONTINUE") {
+    return fetchHomeContinue();
+  }
+
+  if (message.type === "GET_HOME_FAVORITES") {
+    return fetchHomeFavorites(parseUserId(message.userId));
+  }
+
+  if (message.type === "GET_HOME_RECOMMENDED") {
+    return fetchHomeRecommended();
   }
 
   const placeId = parsePlaceId(message.placeId);
@@ -188,10 +207,11 @@ async function fetchHomeFriends(userId) {
     return { count: 0, friends: [] };
   }
 
-  const [profiles, presences, thumbnails] = await Promise.all([
+  const [profiles, presences, thumbnails, customNames] = await Promise.all([
     fetchFriendProfiles(userIds),
     fetchFriendPresences(userIds).catch(() => []),
     fetchFriendThumbnails(userIds).catch(() => []),
+    fetchFriendCustomNames(userIds).catch(() => []),
   ]);
   const presenceByUserId = new Map(
     presences.map((presence) => [Number(presence?.userId), presence]),
@@ -199,12 +219,16 @@ async function fetchHomeFriends(userId) {
   const thumbnailByUserId = new Map(
     thumbnails.map((thumbnail) => [Number(thumbnail?.targetId), thumbnail]),
   );
+  const customNameByUserId = new Map(
+    customNames.map((tag) => [Number(tag?.targetUserId), tag?.targetUserTag]),
+  );
   const friends = profiles
     .map((profile) =>
       normalizeHomeFriend(
         profile,
         presenceByUserId.get(Number(profile?.id)),
         thumbnailByUserId.get(Number(profile?.id)),
+        customNameByUserId.get(Number(profile?.id)),
       ),
     )
     .filter(Boolean)
@@ -287,10 +311,464 @@ async function fetchFriendThumbnails(userIds) {
   );
 }
 
-function normalizeHomeFriend(profile, presence, thumbnail) {
+async function fetchFriendCustomNames(userIds) {
+  const responses = await Promise.all(
+    chunkValues(userIds, 50).map((batch) =>
+      fetchJsonWithRetry("https://contacts.roblox.com/v1/user/get-tags", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ targetUserIds: batch }),
+      }),
+    ),
+  );
+
+  return responses.flatMap((payload) => (Array.isArray(payload) ? payload : []));
+}
+
+async function searchHomeUsers(query) {
+  const url = new URL("https://users.roblox.com/v1/users/search");
+  url.searchParams.set("keyword", query);
+  url.searchParams.set("limit", "10");
+
+  const payload = await fetchJsonWithRetry(url.href, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!Array.isArray(payload?.data)) {
+    throw new ApiError(
+      "INVALID_USER_SEARCH_RESPONSE",
+      "Roblox devolvió resultados de búsqueda inválidos.",
+    );
+  }
+
+  const profiles = payload.data
+    .map(normalizeHomeSearchUser)
+    .filter(Boolean)
+    .slice(0, 8);
+  const thumbnails = profiles.length
+    ? await fetchFriendThumbnails(profiles.map((profile) => profile.id)).catch(
+        () => [],
+      )
+    : [];
+  const thumbnailByUserId = new Map(
+    thumbnails.map((thumbnail) => [Number(thumbnail?.targetId), thumbnail]),
+  );
+
+  return {
+    query,
+    users: profiles.map((profile) => {
+      const imageUrl = thumbnailByUserId.get(profile.id)?.imageUrl;
+
+      return {
+        ...profile,
+        avatarUrl:
+          typeof imageUrl === "string" && /^https:\/\//i.test(imageUrl)
+            ? imageUrl
+            : null,
+      };
+    }),
+  };
+}
+
+function normalizeHomeSearchUser(profile) {
   const id = Number(profile?.id);
   const username = normalizeHomeText(profile?.name, 20);
   const displayName = normalizeHomeText(profile?.displayName, 50);
+
+  if (!Number.isSafeInteger(id) || id <= 0 || !username || !displayName) {
+    return null;
+  }
+
+  return {
+    displayName,
+    id,
+    previousUsernames: Array.isArray(profile?.previousUsernames)
+      ? profile.previousUsernames
+          .map((name) => normalizeHomeText(name, 20))
+          .filter(Boolean)
+          .slice(0, 3)
+      : [],
+    username,
+  };
+}
+
+async function fetchHomeContinue() {
+  const payload = await fetchHomeDiscoveryFeed();
+
+  const continueSort = payload.sorts.find(
+    (sort) =>
+      normalizeHomeText(sort?.topic, 50).toLocaleLowerCase() === "continue" ||
+      Number(sort?.topicId) === 100000003,
+  );
+  const recommendations = Array.isArray(continueSort?.recommendationList)
+    ? continueSort.recommendationList
+    : [];
+  const metadata = payload?.contentMetadata?.Game;
+  const games = recommendations
+    .map((recommendation) => {
+      const universeId = Number(recommendation?.contentId);
+      const game =
+        metadata && typeof metadata === "object"
+          ? metadata[String(universeId)]
+          : null;
+
+      return normalizeHomeDiscoveryGame(universeId, game);
+    })
+    .filter(Boolean)
+    .slice(0, 30);
+  const icons = games.length
+    ? await fetchHomeGameIcons(games.map((game) => game.universeId)).catch(
+        () => [],
+      )
+    : [];
+  const iconByUniverseId = new Map(
+    icons.map((icon) => [Number(icon?.targetId), icon?.imageUrl]),
+  );
+
+  return {
+    games: games.map((game) => {
+      const imageUrl = iconByUniverseId.get(game.universeId);
+
+      return {
+        ...game,
+        imageUrl:
+          typeof imageUrl === "string" && /^https:\/\//i.test(imageUrl)
+            ? imageUrl
+            : null,
+      };
+    }),
+  };
+}
+
+async function fetchHomeDiscoveryFeed() {
+  if (
+    homeDiscoveryCache &&
+    Date.now() - homeDiscoveryCache.timestamp < HOME_DISCOVERY_CACHE_TTL_MS
+  ) {
+    return homeDiscoveryCache.value;
+  }
+
+  if (homeDiscoveryRequest) {
+    return homeDiscoveryRequest;
+  }
+
+  homeDiscoveryRequest = fetchJsonWithRetry(
+    "https://apis.roblox.com/discovery-api/omni-recommendation",
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        pageType: "Home",
+        sessionId: crypto.randomUUID(),
+        supportedTreatmentTypes: ["SortlessGrid"],
+        sduiTreatmentTypes: ["Carousel", "HeroUnit"],
+      }),
+    },
+  )
+    .then((payload) => {
+      if (!Array.isArray(payload?.sorts)) {
+        throw new ApiError(
+          "INVALID_HOME_DISCOVERY_RESPONSE",
+          "Roblox devolvió un feed de inicio inválido.",
+        );
+      }
+
+      homeDiscoveryCache = { timestamp: Date.now(), value: payload };
+      return payload;
+    })
+    .finally(() => {
+      homeDiscoveryRequest = null;
+    });
+
+  return homeDiscoveryRequest;
+}
+
+async function fetchHomeRecommended() {
+  const payload = await fetchHomeDiscoveryFeed();
+  const recommendedSort = payload.sorts.find(
+    (sort) =>
+      (Number(sort?.topicId) === 100000000 ||
+        normalizeHomeText(sort?.topic, 50).toLocaleLowerCase() ===
+          "recommended for you") &&
+      Array.isArray(sort?.recommendationList) &&
+      sort.recommendationList.length > 0,
+  );
+  const recommendations = Array.isArray(recommendedSort?.recommendationList)
+    ? recommendedSort.recommendationList
+    : [];
+  const metadata = payload?.contentMetadata?.Game;
+  const seenUniverseIds = new Set();
+  const games = recommendations
+    .filter((recommendation) => recommendation?.contentType === "Game")
+    .map((recommendation) => {
+      const universeId = Number(recommendation?.contentId);
+
+      if (seenUniverseIds.has(universeId)) {
+        return null;
+      }
+
+      seenUniverseIds.add(universeId);
+      const game =
+        metadata && typeof metadata === "object"
+          ? metadata[String(universeId)]
+          : null;
+      return normalizeHomeDiscoveryGame(universeId, game);
+    })
+    .filter(Boolean)
+    .slice(0, 50);
+  const thumbnails = games.length
+    ? await fetchHomeGameThumbnails(
+        games.map((game) => game.universeId),
+      ).catch(() => [])
+    : [];
+  const thumbnailByUniverseId = new Map(
+    thumbnails.map((thumbnail) => [
+      Number(thumbnail?.universeId),
+      thumbnail?.thumbnails?.[0]?.imageUrl,
+    ]),
+  );
+
+  return {
+    games: games.map((game) => {
+      const imageUrl = thumbnailByUniverseId.get(game.universeId);
+
+      return {
+        ...game,
+        imageUrl:
+          typeof imageUrl === "string" && /^https:\/\//i.test(imageUrl)
+            ? imageUrl
+            : null,
+      };
+    }),
+  };
+}
+
+function normalizeHomeDiscoveryGame(universeId, game) {
+  const name = normalizeHomeText(game?.name, 120);
+  const placeId = Number(game?.rootPlaceId);
+  const playerCount = Number(game?.playerCount);
+  const upVotes = Number(game?.totalUpVotes);
+  const downVotes = Number(game?.totalDownVotes);
+  const totalVotes = upVotes + downVotes;
+
+  if (
+    !Number.isSafeInteger(universeId) ||
+    universeId <= 0 ||
+    !Number.isSafeInteger(placeId) ||
+    placeId <= 0 ||
+    !name
+  ) {
+    return null;
+  }
+
+  return {
+    name,
+    placeId,
+    playerCount:
+      Number.isSafeInteger(playerCount) && playerCount >= 0 ? playerCount : 0,
+    rating:
+      Number.isSafeInteger(upVotes) &&
+      upVotes >= 0 &&
+      Number.isSafeInteger(downVotes) &&
+      downVotes >= 0 &&
+      totalVotes > 0
+        ? Math.round((upVotes / totalVotes) * 100)
+        : null,
+    universeId,
+  };
+}
+
+async function fetchHomeGameThumbnails(universeIds) {
+  const responses = await Promise.all(
+    chunkValues(universeIds, 20).map((batch) => {
+      const url = new URL(
+        "https://thumbnails.roblox.com/v1/games/multiget/thumbnails",
+      );
+      url.searchParams.set("universeIds", batch.join(","));
+      url.searchParams.set("countPerUniverse", "1");
+      url.searchParams.set("defaults", "true");
+      url.searchParams.set("size", "384x216");
+      url.searchParams.set("format", "Webp");
+      url.searchParams.set("isCircular", "false");
+
+      return fetchJsonWithRetry(url.href, {
+        headers: { Accept: "application/json" },
+      });
+    }),
+  );
+
+  return responses.flatMap((response) =>
+    Array.isArray(response?.data) ? response.data : [],
+  );
+}
+
+async function fetchHomeGameIcons(universeIds) {
+  const responses = await Promise.all(
+    chunkValues(universeIds, 50).map((batch) => {
+      const url = new URL("https://thumbnails.roblox.com/v1/games/icons");
+      url.searchParams.set("universeIds", batch.join(","));
+      url.searchParams.set("returnPolicy", "PlaceHolder");
+      url.searchParams.set("size", "256x256");
+      url.searchParams.set("format", "Webp");
+      url.searchParams.set("isCircular", "false");
+
+      return fetchJsonWithRetry(url.href, {
+        headers: { Accept: "application/json" },
+      });
+    }),
+  );
+
+  return responses.flatMap((response) =>
+    Array.isArray(response?.data) ? response.data : [],
+  );
+}
+
+async function fetchHomeFavorites(userId) {
+  const url = new URL(
+    `https://games.roblox.com/v2/users/${userId}/favorite/games`,
+  );
+  url.searchParams.set("accessFilter", "2");
+  url.searchParams.set("limit", "50");
+  url.searchParams.set("sortOrder", "Desc");
+
+  const payload = await fetchJsonWithRetry(url.href, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!Array.isArray(payload?.data)) {
+    throw new ApiError(
+      "INVALID_FAVORITES_RESPONSE",
+      "Roblox devolvió una lista de favoritos inválida.",
+    );
+  }
+
+  const favorites = payload.data.slice(0, 30);
+  const universeIds = favorites
+    .map((favorite) => Number(favorite?.id))
+    .filter((id) => Number.isSafeInteger(id) && id > 0);
+
+  if (!universeIds.length) {
+    return { games: [] };
+  }
+
+  const [games, votes, icons] = await Promise.all([
+    fetchHomeGames(universeIds),
+    fetchHomeGameVotes(universeIds).catch(() => []),
+    fetchHomeGameIcons(universeIds).catch(() => []),
+  ]);
+  const gameByUniverseId = new Map(
+    games.map((game) => [Number(game?.id), game]),
+  );
+  const votesByUniverseId = new Map(
+    votes.map((vote) => [Number(vote?.id), vote]),
+  );
+  const iconByUniverseId = new Map(
+    icons.map((icon) => [Number(icon?.targetId), icon?.imageUrl]),
+  );
+
+  return {
+    games: favorites
+      .map((favorite) => {
+        const universeId = Number(favorite?.id);
+        return normalizeHomeFavoriteGame(
+          favorite,
+          gameByUniverseId.get(universeId),
+          votesByUniverseId.get(universeId),
+          iconByUniverseId.get(universeId),
+        );
+      })
+      .filter(Boolean),
+  };
+}
+
+async function fetchHomeGames(universeIds) {
+  const responses = await Promise.all(
+    chunkValues(universeIds, 50).map((batch) => {
+      const url = new URL("https://games.roblox.com/v1/games");
+      url.searchParams.set("universeIds", batch.join(","));
+      return fetchJsonWithRetry(url.href, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+    }),
+  );
+
+  return responses.flatMap((response) =>
+    Array.isArray(response?.data) ? response.data : [],
+  );
+}
+
+async function fetchHomeGameVotes(universeIds) {
+  const responses = await Promise.all(
+    chunkValues(universeIds, 50).map((batch) => {
+      const url = new URL("https://games.roblox.com/v1/games/votes");
+      url.searchParams.set("universeIds", batch.join(","));
+      return fetchJsonWithRetry(url.href, {
+        headers: { Accept: "application/json" },
+      });
+    }),
+  );
+
+  return responses.flatMap((response) =>
+    Array.isArray(response?.data) ? response.data : [],
+  );
+}
+
+function normalizeHomeFavoriteGame(favorite, game, votes, imageUrl) {
+  const universeId = Number(favorite?.id);
+  const placeId = Number(game?.rootPlaceId || favorite?.rootPlace?.id);
+  const name = normalizeHomeText(game?.name || favorite?.name, 120);
+  const playerCount = Number(game?.playing);
+  const upVotes = Number(votes?.upVotes);
+  const downVotes = Number(votes?.downVotes);
+  const totalVotes = upVotes + downVotes;
+
+  if (
+    !Number.isSafeInteger(universeId) ||
+    universeId <= 0 ||
+    !Number.isSafeInteger(placeId) ||
+    placeId <= 0 ||
+    !name
+  ) {
+    return null;
+  }
+
+  return {
+    imageUrl:
+      typeof imageUrl === "string" && /^https:\/\//i.test(imageUrl)
+        ? imageUrl
+        : null,
+    name,
+    placeId,
+    playerCount:
+      Number.isSafeInteger(playerCount) && playerCount >= 0 ? playerCount : 0,
+    rating:
+      Number.isSafeInteger(upVotes) &&
+      upVotes >= 0 &&
+      Number.isSafeInteger(downVotes) &&
+      downVotes >= 0 &&
+      totalVotes > 0
+        ? Math.round((upVotes / totalVotes) * 100)
+        : null,
+    universeId,
+  };
+}
+
+function normalizeHomeFriend(profile, presence, thumbnail, customNameValue) {
+  const id = Number(profile?.id);
+  const username = normalizeHomeText(profile?.name, 20);
+  const displayName = normalizeHomeText(profile?.displayName, 50);
+  const customName = normalizeHomeText(customNameValue, 50) || null;
 
   if (!Number.isSafeInteger(id) || id <= 0 || !username || !displayName) {
     return null;
@@ -323,6 +801,7 @@ function normalizeHomeFriend(profile, presence, thumbnail) {
       typeof imageUrl === "string" && /^https:\/\//i.test(imageUrl)
         ? imageUrl
         : null,
+    customName,
     displayName,
     gameId: status === "playing" ? gameId : null,
     id,
@@ -464,15 +943,30 @@ function parseOptionalUniverseId(value) {
   return universeId;
 }
 
+function parseHomeSearchQuery(value) {
+  const query = normalizeHomeText(value, 50);
+
+  if (query.length < 3) {
+    throw new ApiError(
+      "INVALID_SEARCH_QUERY",
+      "Escribe al menos 3 caracteres para buscar jugadores.",
+    );
+  }
+
+  return query;
+}
+
 function compareHomeFriends(left, right) {
   const rank = { playing: 0, studio: 1, online: 2, offline: 3 };
   const presenceDifference = rank[left.status] - rank[right.status];
 
   return (
     presenceDifference ||
-    left.displayName.localeCompare(right.displayName, undefined, {
-      sensitivity: "base",
-    })
+    (left.customName || left.displayName).localeCompare(
+      right.customName || right.displayName,
+      undefined,
+      { sensitivity: "base" },
+    )
   );
 }
 

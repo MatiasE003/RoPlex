@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Roblox Extension",
-  "version": "0.7.0",
+  "version": "0.12.3",
   "description": "Custom Roblox home and geolocated public server browser.",
   "permissions": [
     "declarativeNetRequestWithHostAccess",
@@ -9,7 +9,9 @@
     "storage"
   ],
   "host_permissions": [
+    "https://apis.roblox.com/*",
     "https://www.roblox.com/*",
+    "https://contacts.roblox.com/*",
     "https://friends.roblox.com/*",
     "https://games.roblox.com/*",
     "https://gamejoin.roblox.com/*",

@@ -3,9 +3,48 @@ document.documentElement.classList.add("roblox-extension-home-active");
 const HOME_BOOTSTRAP_MESSAGE = "GET_HOME_BOOTSTRAP";
 const HOME_FRIENDS_MESSAGE = "GET_HOME_FRIENDS";
 const HOME_FRIEND_PREVIEW_MESSAGE = "GET_HOME_FRIEND_PREVIEW";
+const HOME_CONTINUE_MESSAGE = "GET_HOME_CONTINUE";
+const HOME_FAVORITES_MESSAGE = "GET_HOME_FAVORITES";
+const HOME_RECOMMENDED_MESSAGE = "GET_HOME_RECOMMENDED";
+const HOME_USER_SEARCH_MESSAGE = "SEARCH_HOME_USERS";
+const HOME_USER_READY_EVENT = "roblox-extension:user-ready";
+const HOME_USER_ERROR_EVENT = "roblox-extension:user-error";
+const HOME_REFRESH_EVENT = "roblox-extension:home-refresh";
+const ROUTE_CHANGE_EVENT = "roblox-extension:route-change";
+const COMPONENT_CONNECTED_EVENT = "roblox-extension:component-connected";
+const COMPONENT_DISCONNECTED_EVENT = "roblox-extension:component-disconnected";
 const JOIN_REQUEST_EVENT = "roblox-extension:join-server";
 const JOIN_RESULT_EVENT = "roblox-extension:join-server-result";
 const pendingHomeJoins = new Map();
+
+const GAME_FEEDS = {
+  continue: {
+    ariaLabel: "Recently played experiences",
+    emptyMessage: "Play an experience and it will appear here.",
+    errorMessage: "Your recently played experiences could not be loaded.",
+    invalidMessage: "Roblox returned an invalid Continue list.",
+    messageType: HOME_CONTINUE_MESSAGE,
+    title: "Continue",
+  },
+  favorites: {
+    ariaLabel: "Favorite experiences",
+    blockedMessage: "Sign in to load your favorite experiences.",
+    emptyMessage: "Experiences you favorite will appear here.",
+    errorMessage: "Your favorite experiences could not be loaded.",
+    invalidMessage: "Roblox returned an invalid Favorites list.",
+    messageType: HOME_FAVORITES_MESSAGE,
+    requiresUser: true,
+    title: "Favorites",
+  },
+  recommended: {
+    emptyMessage: "Roblox has no recommendations available.",
+    errorMessage: "Recommendations could not be loaded.",
+    invalidMessage: "Roblox returned invalid recommendations.",
+    landscape: true,
+    messageType: HOME_RECOMMENDED_MESSAGE,
+    title: "Recommended For You",
+  },
+};
 
 document.addEventListener(JOIN_RESULT_EVENT, handleHomeJoinResult);
 
@@ -19,7 +58,7 @@ const homeMarkup = `
     <a class="rx-brand" href="/home" aria-label="Roblox Home"><i class="rx-brand-mark"></i><span>ROBLOX</span></a>
     <nav class="rx-primary-nav" aria-label="Roblox sections"><a class="active" href="/home">Home</a><a href="/charts">Charts</a><a href="/catalog">Marketplace</a><a href="/create">Create</a></nav>
     <div class="rx-topbar-tools">
-      <form class="rx-search" action="/discover/" method="get"><svg class="rx-icon"><use href="#rx-search"></use></svg><input name="Keyword" type="search" placeholder="Search" aria-label="Search Roblox" /></form>
+      <rx-home-search></rx-home-search>
       <a class="rx-top-icon" href="/notifications" aria-label="Notifications"><svg class="rx-icon"><use href="#rx-bell"></use></svg></a>
       <a class="rx-top-icon" href="/my/account" aria-label="Settings"><svg class="rx-icon"><use href="#rx-gear"></use></svg></a>
     </div>
@@ -48,130 +87,736 @@ const homeMarkup = `
         <div class="rx-bootstrap-copy"><span class="rx-eyebrow">Your Roblox account</span><h2 data-greeting>Connecting to Roblox...</h2><p data-bootstrap-status>Loading your authenticated profile and avatar.</p></div>
         <button class="rx-retry-button" data-retry hidden><svg class="rx-icon"><use href="#rx-refresh"></use></svg>Retry</button>
       </section>
-      <section class="rx-section" id="rx-friends" aria-labelledby="rx-friends-title">
-        <div class="rx-section-heading rx-friends-heading"><h2 id="rx-friends-title">Friends <span data-friends-count></span></h2><a class="rx-see-all" data-user-friends-link href="/home">See all</a></div>
-        <div class="rx-friends-strip" data-friends-content aria-live="polite">
-          <div class="rx-friend-skeleton"></div><div class="rx-friend-skeleton"></div><div class="rx-friend-skeleton"></div><div class="rx-friend-skeleton"></div><div class="rx-friend-skeleton"></div><div class="rx-friend-skeleton"></div><div class="rx-friend-skeleton"></div>
-        </div>
-      </section>
-      <section class="rx-section" aria-labelledby="rx-home-content-title">
-        <div class="rx-section-heading"><div><span class="rx-eyebrow">Next milestone</span><h2 id="rx-home-content-title">Your Home content</h2></div></div>
-        <div class="rx-placeholder-grid" aria-label="Sections awaiting API integration">
-          <article><span>01</span><h3>Continue</h3><p>Your recently played experiences will appear here.</p></article>
-          <article><span>02</span><h3>Recommended</h3><p>Personalized discovery will appear here.</p></article>
-          <article><span>03</span><h3>Favorites</h3><p>Your saved experiences will appear here.</p></article>
-        </div>
-      </section>
+      <rx-friends-list></rx-friends-list>
+      <rx-game-feed feed="continue"></rx-game-feed>
+      <rx-game-feed feed="favorites"></rx-game-feed>
+      <rx-game-feed feed="recommended"></rx-game-feed>
     </div>
   </main>
 `;
 
+// Custom elements are stateful containers that own their lifecycle and requests.
+class HomeApp extends HTMLElement {
+  connectedCallback() {
+    if (this.childElementCount) {
+      document.addEventListener(ROUTE_CHANGE_EVENT, this.handleRouteChange);
+      this.syncRoute();
+      return;
+    }
+
+    this.handleRouteChange = () => this.syncRoute();
+    this.innerHTML = homeMarkup;
+    this.querySelector("[data-retry]").addEventListener("click", () =>
+      loadBootstrap(this),
+    );
+    document.addEventListener(ROUTE_CHANGE_EVENT, this.handleRouteChange);
+    this.syncRoute();
+    loadBootstrap(this);
+  }
+
+  disconnectedCallback() {
+    this.bootstrapRequestId = (this.bootstrapRequestId || 0) + 1;
+    document.removeEventListener(ROUTE_CHANGE_EVENT, this.handleRouteChange);
+  }
+
+  syncRoute() {
+    if (!isHomePath(location.pathname)) {
+      this.bootstrapRequestId = (this.bootstrapRequestId || 0) + 1;
+      this.hidden = true;
+      document.documentElement.classList.remove("roblox-extension-home-active");
+      return;
+    }
+
+    const wasHidden = this.hidden;
+    this.hidden = false;
+    document.documentElement.classList.add("roblox-extension-home-active");
+
+    if (wasHidden) {
+      this.dispatchEvent(new CustomEvent(HOME_REFRESH_EVENT, { bubbles: true }));
+      loadBootstrap(this);
+    }
+  }
+}
+
+class GameFeed extends HTMLElement {
+  connectedCallback() {
+    if (this.content) {
+      this.addUserEventListeners();
+      return;
+    }
+
+    this.config = GAME_FEEDS[this.getAttribute("feed")];
+
+    if (!this.config) {
+      throw new Error("The game feed configuration is invalid.");
+    }
+
+    const feed = this.getAttribute("feed");
+    const titleId = `rx-${feed}-title`;
+    const headingClass = this.config.landscape
+      ? "rx-section-heading"
+      : "rx-section-heading rx-carousel-heading";
+    const hint = this.config.landscape ? "" : "<span>Scroll to explore</span>";
+    const contentClass = this.config.landscape
+      ? "rx-recommended-grid"
+      : "rx-game-carousel";
+    const accessibility = this.config.ariaLabel
+      ? ` tabindex="0" aria-label="${this.config.ariaLabel}"`
+      : "";
+
+    this.innerHTML = `
+      <section class="rx-section" id="rx-${feed}" aria-labelledby="${titleId}">
+        <div class="${headingClass}"><h2 id="${titleId}">${this.config.title}</h2>${hint}</div>
+        <div class="${contentClass}" data-${feed}-content aria-live="polite"${accessibility}></div>
+      </section>
+    `;
+    this.content = this.querySelector(`[data-${feed}-content]`);
+    this.handleUserReady = (event) => {
+      if (this.config.requiresUser) {
+        this.load(event.detail.userId);
+      }
+    };
+    this.handleUserError = () => {
+      if (this.config.requiresUser) {
+        this.renderBlocked();
+      }
+    };
+    this.handleHomeRefresh = () => {
+      if (this.config.requiresUser) {
+        this.requestId = (this.requestId || 0) + 1;
+        this.renderLoading();
+      } else {
+        this.load();
+      }
+    };
+    this.addUserEventListeners();
+
+    if (!this.config.landscape) {
+      this.content.addEventListener("wheel", handleGameCarouselWheel, {
+        passive: false,
+      });
+    }
+
+    if (!this.config.requiresUser) {
+      this.load();
+    } else {
+      this.renderLoading();
+    }
+  }
+
+  disconnectedCallback() {
+    this.requestId = (this.requestId || 0) + 1;
+    document.removeEventListener(HOME_USER_READY_EVENT, this.handleUserReady);
+    document.removeEventListener(HOME_USER_ERROR_EVENT, this.handleUserError);
+    document.removeEventListener(HOME_REFRESH_EVENT, this.handleHomeRefresh);
+  }
+
+  addUserEventListeners() {
+    document.addEventListener(HOME_USER_READY_EVENT, this.handleUserReady);
+    document.addEventListener(HOME_USER_ERROR_EVENT, this.handleUserError);
+    document.addEventListener(HOME_REFRESH_EVENT, this.handleHomeRefresh);
+  }
+
+  async load(userId = this.userId) {
+    if (this.config.requiresUser && !Number.isSafeInteger(userId)) {
+      this.renderBlocked();
+      return;
+    }
+
+    this.userId = userId;
+    const requestId = (this.requestId || 0) + 1;
+    this.requestId = requestId;
+    this.renderLoading();
+
+    try {
+      const data = await sendMessage({
+        type: this.config.messageType,
+        ...(this.config.requiresUser ? { userId } : {}),
+      });
+
+      if (requestId === this.requestId && this.isConnected) {
+        this.renderGames(data);
+      }
+    } catch (error) {
+      if (requestId === this.requestId && this.isConnected) {
+        this.renderError(error?.message || this.config.errorMessage);
+      }
+    }
+  }
+
+  renderLoading() {
+    const count = this.config.landscape ? 8 : 7;
+    const skeletonClass = this.config.landscape
+      ? "rx-game-skeleton rx-game-skeleton-landscape"
+      : "rx-game-skeleton";
+    this.setContentState("ready");
+    this.content.replaceChildren(
+      ...Array.from({ length: count }, () => {
+        const skeleton = document.createElement("div");
+        skeleton.className = skeletonClass;
+        return skeleton;
+      }),
+    );
+  }
+
+  renderGames(data) {
+    if (!data || !Array.isArray(data.games)) {
+      throw new Error(this.config.invalidMessage);
+    }
+
+    if (!data.games.length) {
+      this.renderMessage(this.config.emptyMessage);
+      return;
+    }
+
+    this.setContentState("ready");
+    this.content.replaceChildren(
+      ...data.games.map((game) => createGameCard(game, this.config.landscape)),
+    );
+  }
+
+  renderBlocked() {
+    this.requestId = (this.requestId || 0) + 1;
+    this.renderMessage(this.config.blockedMessage);
+  }
+
+  renderMessage(message, retry = false) {
+    const state = createInlineState(message);
+
+    if (retry) {
+      state.append(createRetryButton(() => this.load()));
+    }
+
+    this.setContentState("message");
+    this.content.replaceChildren(state);
+  }
+
+  renderError(message) {
+    this.renderMessage(message, true);
+  }
+
+  setContentState(state) {
+    if (state === "ready") {
+      this.content.className = this.config.landscape
+        ? "rx-recommended-grid"
+        : "rx-game-carousel";
+      return;
+    }
+
+    this.content.className = this.config.landscape
+      ? "rx-recommended-state"
+      : "rx-game-carousel-state";
+  }
+}
+
 function mountHome() {
-  if (document.getElementById("roblox-extension-home")) {
+  if (
+    !isHomePath(location.pathname) ||
+    document.getElementById("roblox-extension-home")
+  ) {
     return;
   }
 
-  const root = document.createElement("div");
+  const root = document.createElement("rx-home-app");
   root.id = "roblox-extension-home";
-  root.innerHTML = homeMarkup;
   document.body.prepend(root);
-  root.querySelector("[data-retry]").addEventListener("click", loadBootstrap);
-  loadBootstrap();
 }
 
-async function loadBootstrap() {
-  const root = document.getElementById("roblox-extension-home");
+function isHomePath(pathname) {
+  return pathname === "/home" || pathname === "/home/";
+}
 
+function handleGameCarouselWheel(event) {
+  if (event.ctrlKey) {
+    return;
+  }
+
+  const carousel = event.currentTarget;
+  const rawDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+    ? event.deltaY
+    : event.deltaX;
+  const multiplier =
+    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? 32
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? carousel.clientWidth
+        : 1;
+  const delta = rawDelta * multiplier;
+  const maximumScroll = carousel.scrollWidth - carousel.clientWidth;
+  const canMove =
+    (delta > 0 && carousel.scrollLeft < maximumScroll - 1) ||
+    (delta < 0 && carousel.scrollLeft > 1);
+
+  if (!delta) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (!canMove) {
+    return;
+  }
+
+  carousel.scrollLeft += delta;
+}
+
+// create* helpers are stateless presentation functions: data in, DOM node out.
+function createGameCard(game, landscape = false) {
+  const card = document.createElement("a");
+  const thumbnail = document.createElement("span");
+  const fallback = document.createElement("span");
+  const play = document.createElement("i");
+  const name = document.createElement("strong");
+  const stats = document.createElement("span");
+  const rating = document.createElement("span");
+  const players = document.createElement("span");
+  const initial = Array.from(game.name.trim())[0]?.toUpperCase() || "?";
+
+  card.className = landscape
+    ? "rx-game-card rx-game-card-landscape"
+    : "rx-game-card";
+  card.href = `/games/${game.placeId}`;
+  card.setAttribute("aria-label", `Open ${game.name}`);
+  thumbnail.className = landscape
+    ? "rx-game-thumbnail rx-game-thumbnail-landscape"
+    : "rx-game-thumbnail";
+  fallback.className = "rx-game-fallback";
+  fallback.textContent = initial;
+  play.className = "rx-game-play";
+  name.className = "rx-game-name";
+  name.textContent = game.name;
+  name.title = game.name;
+  stats.className = "rx-game-stats";
+  rating.textContent = game.rating === null ? "-- rating" : `${game.rating}%`;
+  players.textContent = `${formatCompactNumber(game.playerCount)} playing`;
+
+  if (typeof game.imageUrl === "string" && game.imageUrl.startsWith("https://")) {
+    const image = document.createElement("img");
+    image.alt = "";
+    image.loading = "lazy";
+    image.referrerPolicy = "no-referrer";
+    image.src = game.imageUrl;
+    thumbnail.append(image, play);
+  } else {
+    thumbnail.append(fallback, play);
+  }
+
+  stats.append(rating, players);
+  card.append(thumbnail, name, stats);
+  return card;
+}
+
+function formatCompactNumber(value) {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 1,
+    notation: value >= 1000 ? "compact" : "standard",
+  }).format(value);
+}
+
+// Stateful custom elements keep request state and clean up their own listeners.
+class HomeSearch extends HTMLElement {
+  connectedCallback() {
+    if (this.form) {
+      document.addEventListener("pointerdown", this.handleDocumentPointerDown);
+      return;
+    }
+
+    this.innerHTML = `
+      <form class="rx-search" action="/discover/" method="get">
+        <svg class="rx-icon"><use href="#rx-search"></use></svg>
+        <input name="Keyword" type="search" placeholder="Search" aria-label="Search Roblox" autocomplete="off" aria-controls="rx-search-panel" aria-expanded="false" />
+        <div class="rx-search-panel" id="rx-search-panel" hidden>
+          <section class="rx-search-section" aria-labelledby="rx-search-people-title">
+            <span class="rx-search-section-title" id="rx-search-people-title">Players</span>
+            <div class="rx-search-users" aria-live="polite"></div>
+          </section>
+          <section class="rx-search-section rx-search-destination-section" aria-labelledby="rx-search-destinations-title">
+            <span class="rx-search-section-title" id="rx-search-destinations-title">Search in</span>
+            <div class="rx-search-destinations"></div>
+          </section>
+        </div>
+      </form>
+    `;
+    this.form = this.querySelector("form");
+    this.input = this.querySelector("input");
+    this.panel = this.querySelector(".rx-search-panel");
+    this.users = this.querySelector(".rx-search-users");
+    this.destinations = this.querySelector(".rx-search-destinations");
+    this.handleDocumentPointerDown = (event) => {
+      if (!this.contains(event.target)) {
+        this.close();
+      }
+    };
+
+    this.input.addEventListener("input", () => this.handleInput());
+    this.input.addEventListener("focus", () => {
+      if (this.input.value.trim()) {
+        this.open();
+      }
+    });
+    this.input.addEventListener("keydown", (event) => this.handleInputKey(event));
+    this.panel.addEventListener("keydown", (event) => this.handlePanelKey(event));
+    this.form.addEventListener("submit", (event) => {
+      if (!this.input.value.trim()) {
+        event.preventDefault();
+      }
+    });
+    document.addEventListener("pointerdown", this.handleDocumentPointerDown);
+  }
+
+  disconnectedCallback() {
+    clearTimeout(this.searchTimer);
+    document.removeEventListener("pointerdown", this.handleDocumentPointerDown);
+  }
+
+  handleInput() {
+    const query = this.input.value.trim();
+    const requestId = (this.requestId || 0) + 1;
+    this.requestId = requestId;
+    clearTimeout(this.searchTimer);
+
+    if (!query) {
+      this.users.replaceChildren();
+      this.destinations.replaceChildren();
+      this.close();
+      return;
+    }
+
+    this.open();
+    renderHomeSearchDestinations(this.destinations, query);
+
+    if (query.length < 3) {
+      renderHomeSearchMessage(
+        this.users,
+        "Type at least 3 characters to find players.",
+      );
+      return;
+    }
+
+    renderHomeSearchMessage(this.users, "Searching players...", "loading");
+    this.searchTimer = setTimeout(() => this.loadUsers(query, requestId), 250);
+  }
+
+  async loadUsers(query, requestId) {
+    try {
+      const data = await sendMessage({ type: HOME_USER_SEARCH_MESSAGE, query });
+
+      if (requestId === this.requestId && this.isConnected) {
+        renderHomeSearchUsers(this.users, data, query);
+      }
+    } catch (error) {
+      if (requestId === this.requestId && this.isConnected) {
+        renderHomeSearchMessage(
+          this.users,
+          error?.message || "Player search is temporarily unavailable.",
+          "error",
+        );
+      }
+    }
+  }
+
+  open() {
+    this.panel.hidden = false;
+    this.input.setAttribute("aria-expanded", "true");
+  }
+
+  close() {
+    this.panel.hidden = true;
+    this.input.setAttribute("aria-expanded", "false");
+  }
+
+  handleInputKey(event) {
+    if (event.key === "Escape") {
+      this.close();
+      return;
+    }
+
+    if (event.key === "ArrowDown" && !this.panel.hidden) {
+      const firstLink = this.panel.querySelector("a");
+
+      if (firstLink) {
+        event.preventDefault();
+        firstLink.focus();
+      }
+    }
+  }
+
+  handlePanelKey(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.close();
+      this.input.focus();
+      return;
+    }
+
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+      return;
+    }
+
+    const links = [...this.panel.querySelectorAll("a")];
+    const currentIndex = links.indexOf(document.activeElement);
+
+    if (!links.length || currentIndex < 0) {
+      return;
+    }
+
+    event.preventDefault();
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    links[(currentIndex + direction + links.length) % links.length].focus();
+  }
+}
+
+function renderHomeSearchUsers(container, data, query) {
+  if (!data || !Array.isArray(data.users)) {
+    throw new Error("Roblox returned invalid player search results.");
+  }
+
+  if (!data.users.length) {
+    renderHomeSearchMessage(container, `No players found for “${query}”.`);
+    return;
+  }
+
+  container.replaceChildren(
+    ...data.users.map((user) => createHomeSearchUser(user, query)),
+  );
+}
+
+// create* helpers are stateless presentation functions: data in, DOM node out.
+function createHomeSearchUser(user, query) {
+  const link = document.createElement("a");
+  const avatar = document.createElement("span");
+  const copy = document.createElement("span");
+  const displayName = document.createElement("strong");
+  const username = document.createElement("small");
+  const normalizedQuery = query.toLocaleLowerCase();
+  const previousMatch = user.previousUsernames?.find((name) =>
+    name.toLocaleLowerCase().includes(normalizedQuery),
+  );
+  const initial = Array.from(user.displayName.trim())[0]?.toUpperCase() || "?";
+
+  link.className = "rx-search-user";
+  link.href = `/users/${user.id}/profile`;
+  link.setAttribute("aria-label", `View ${user.displayName}'s profile`);
+  avatar.className = "rx-search-avatar";
+  avatar.textContent = initial;
+  copy.className = "rx-search-user-copy";
+  displayName.textContent = user.displayName;
+  username.textContent = previousMatch
+    ? `@${user.username} · Previously @${previousMatch}`
+    : `@${user.username}`;
+  setAvatarContent(avatar, user.avatarUrl, initial);
+  copy.append(displayName, username);
+  link.append(avatar, copy);
+  return link;
+}
+
+function renderHomeSearchDestinations(container, query) {
+  const encodedQuery = encodeURIComponent(query);
+  const destinations = [
+    ["Players", `/search/users?keyword=${encodedQuery}`],
+    ["Experiences", `/discover/?Keyword=${encodedQuery}`],
+    ["Communities", `/search/groups?keyword=${encodedQuery}`],
+    [
+      "Roblox docs",
+      `https://www.google.com/search?q=${encodeURIComponent(`site:create.roblox.com/docs ${query}`)}`,
+    ],
+  ];
+
+  container.replaceChildren(
+    ...destinations.map(([label, href]) => {
+      const link = document.createElement("a");
+      const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+      const text = document.createElement("span");
+
+      link.className = "rx-search-destination";
+      link.href = href;
+      icon.classList.add("rx-icon");
+      use.setAttribute("href", "#rx-search");
+      text.textContent = `${label}: “${query}”`;
+      icon.append(use);
+      link.append(icon, text);
+      return link;
+    }),
+  );
+}
+
+function renderHomeSearchMessage(container, message, state = "idle") {
+  const element = document.createElement("p");
+  element.className = "rx-search-message";
+  element.dataset.state = state;
+  element.textContent = message;
+  container.replaceChildren(element);
+}
+
+async function loadBootstrap(root = document.getElementById("roblox-extension-home")) {
   if (!root) {
     return;
   }
 
-  setBootstrapState(root, "loading", "Connecting to Roblox...", "Loading your authenticated profile and avatar.");
+  const requestId = (root.bootstrapRequestId || 0) + 1;
+  root.bootstrapRequestId = requestId;
+  setBootstrapState(
+    root,
+    "loading",
+    "Connecting to Roblox...",
+    "Loading your authenticated profile and avatar.",
+  );
 
   try {
     const data = await sendMessage({ type: HOME_BOOTSTRAP_MESSAGE });
+
+    if (requestId !== root.bootstrapRequestId || !root.isConnected) {
+      return;
+    }
+
     renderUser(root, data?.user);
-    loadFriends(data.user.id);
+    root.dispatchEvent(
+      new CustomEvent(HOME_USER_READY_EVENT, {
+        bubbles: true,
+        detail: { userId: data.user.id },
+      }),
+    );
   } catch (error) {
+    if (requestId !== root.bootstrapRequestId || !root.isConnected) {
+      return;
+    }
+
     const message = error?.message || "The account could not be loaded.";
     setBootstrapState(root, "error", "We couldn't load your account", message);
-    renderFriendsBlocked(root);
-  }
-}
-
-async function loadFriends(userId) {
-  const root = document.getElementById("roblox-extension-home");
-
-  if (!root) {
-    return;
-  }
-
-  renderFriendsLoading(root);
-
-  try {
-    const data = await sendMessage({
-      type: HOME_FRIENDS_MESSAGE,
-      userId,
-    });
-    renderFriends(root, data);
-  } catch (error) {
-    renderFriendsError(
-      root,
-      error?.message || "Your friends could not be loaded.",
-      userId,
+    root.dispatchEvent(
+      new CustomEvent(HOME_USER_ERROR_EVENT, {
+        bubbles: true,
+        detail: { message },
+      }),
     );
   }
 }
 
-function renderFriendsLoading(root) {
-  const content = root.querySelector("[data-friends-content]");
-  const skeletons = Array.from({ length: 7 }, () => {
-    const skeleton = document.createElement("div");
-    skeleton.className = "rx-friend-skeleton";
-    return skeleton;
-  });
+// Stateful custom elements keep request state and clean up their own listeners.
+class FriendsList extends HTMLElement {
+  connectedCallback() {
+    if (this.content) {
+      this.addUserEventListeners();
+      return;
+    }
 
-  root.querySelector("[data-friends-count]").textContent = "";
-  content.className = "rx-friends-strip";
-  content.replaceChildren(...skeletons);
-}
-
-function renderFriends(root, data) {
-  if (!data || !Number.isSafeInteger(data.count) || !Array.isArray(data.friends)) {
-    throw new Error("Roblox returned an invalid friends list.");
+    this.innerHTML = `
+      <section class="rx-section" id="rx-friends" aria-labelledby="rx-friends-title">
+        <div class="rx-section-heading rx-friends-heading"><h2 id="rx-friends-title">Friends <span data-friends-count></span></h2><a class="rx-see-all" data-user-friends-link href="/home">See all</a></div>
+        <div class="rx-friends-strip" data-friends-content aria-live="polite"></div>
+      </section>
+    `;
+    this.count = this.querySelector("[data-friends-count]");
+    this.content = this.querySelector("[data-friends-content]");
+    this.handleUserReady = (event) => this.load(event.detail.userId);
+    this.handleUserError = () => this.renderBlocked();
+    this.handleHomeRefresh = () => {
+      this.requestId = (this.requestId || 0) + 1;
+      this.renderLoading();
+    };
+    this.addUserEventListeners();
+    this.renderLoading();
   }
 
-  const content = root.querySelector("[data-friends-content]");
-  root.querySelector("[data-friends-count]").textContent = String(data.count);
-
-  if (!data.friends.length) {
-    content.className = "rx-friends-state";
-    content.replaceChildren(createFriendsMessage("Your friends list is empty."));
-    return;
+  disconnectedCallback() {
+    this.requestId = (this.requestId || 0) + 1;
+    document.removeEventListener(HOME_USER_READY_EVENT, this.handleUserReady);
+    document.removeEventListener(HOME_USER_ERROR_EVENT, this.handleUserError);
+    document.removeEventListener(HOME_REFRESH_EVENT, this.handleHomeRefresh);
   }
 
-  const cards = data.friends.map(createFriendCard);
-  content.className = "rx-friends-strip";
-  content.replaceChildren(...cards);
+  addUserEventListeners() {
+    document.addEventListener(HOME_USER_READY_EVENT, this.handleUserReady);
+    document.addEventListener(HOME_USER_ERROR_EVENT, this.handleUserError);
+    document.addEventListener(HOME_REFRESH_EVENT, this.handleHomeRefresh);
+  }
+
+  async load(userId = this.userId) {
+    this.userId = userId;
+    const requestId = (this.requestId || 0) + 1;
+    this.requestId = requestId;
+    this.renderLoading();
+
+    try {
+      const data = await sendMessage({ type: HOME_FRIENDS_MESSAGE, userId });
+
+      if (requestId === this.requestId && this.isConnected) {
+        this.renderFriends(data);
+      }
+    } catch (error) {
+      if (requestId === this.requestId && this.isConnected) {
+        this.renderError(error?.message || "Your friends could not be loaded.");
+      }
+    }
+  }
+
+  renderLoading() {
+    this.count.textContent = "";
+    this.content.className = "rx-friends-strip";
+    this.content.replaceChildren(
+      ...Array.from({ length: 7 }, () => {
+        const skeleton = document.createElement("div");
+        skeleton.className = "rx-friend-skeleton";
+        return skeleton;
+      }),
+    );
+  }
+
+  renderFriends(data) {
+    if (!data || !Number.isSafeInteger(data.count) || !Array.isArray(data.friends)) {
+      throw new Error("Roblox returned an invalid friends list.");
+    }
+
+    this.count.textContent = String(data.count);
+
+    if (!data.friends.length) {
+      this.renderMessage("Your friends list is empty.");
+      return;
+    }
+
+    this.content.className = "rx-friends-strip";
+    this.content.replaceChildren(...data.friends.map(createFriendCard));
+  }
+
+  renderError(message) {
+    const state = createInlineState(message);
+    state.append(createRetryButton(() => this.load()));
+    this.content.className = "rx-friends-state";
+    this.content.replaceChildren(state);
+  }
+
+  renderBlocked() {
+    this.requestId = (this.requestId || 0) + 1;
+    this.count.textContent = "";
+    this.renderMessage("Load your Roblox account to see your friends.");
+  }
+
+  renderMessage(message) {
+    this.content.className = "rx-friends-state";
+    this.content.replaceChildren(createInlineState(message));
+  }
 }
 
+// create* helpers are stateless presentation functions: data in, DOM node out.
 function createFriendCard(friend) {
   const card = document.createElement("article");
   const avatar = document.createElement("span");
   const name = document.createElement("strong");
   const activity = document.createElement("small");
-  const initial = Array.from(friend.displayName.trim())[0]?.toUpperCase() || "?";
-  const popover = createFriendPopover(friend, initial);
+  const friendName = friend.customName || friend.displayName;
+  const initial = Array.from(friendName.trim())[0]?.toUpperCase() || "?";
+  const popover = createFriendPopover(friend, initial, friendName);
 
   card.className = "rx-friend-card";
   card.dataset.presence = friend.status;
   card.dataset.previewState = "idle";
   card.tabIndex = 0;
-  card.setAttribute("aria-label", `${friend.displayName}, ${friend.activity}`);
+  card.setAttribute("aria-label", `${friendName}, ${friend.activity}`);
   card.setAttribute("aria-describedby", popover.id);
   avatar.className = "rx-friend-avatar";
   avatar.textContent = initial;
-  name.textContent = friend.displayName;
+  name.textContent = friendName;
   activity.textContent = friend.activity;
 
   setAvatarContent(avatar, friend.avatarUrl, initial);
@@ -182,7 +827,7 @@ function createFriendCard(friend) {
   return card;
 }
 
-function createFriendPopover(friend, initial) {
+function createFriendPopover(friend, initial, friendName) {
   const popover = document.createElement("aside");
   const profile = document.createElement("div");
   const avatar = document.createElement("span");
@@ -199,7 +844,7 @@ function createFriendPopover(friend, initial) {
   profile.className = "rx-popover-profile";
   avatar.className = "rx-popover-avatar";
   name.className = "rx-popover-name";
-  displayName.textContent = friend.displayName;
+  displayName.textContent = friendName;
   username.textContent = `@${friend.username}`;
   presence.className = `rx-presence-badge ${friend.status}`;
   presence.textContent = getPresenceLabel(friend.status);
@@ -467,29 +1112,16 @@ function resetHomeJoin(jobId, pending, clearStatus = true) {
   pendingHomeJoins.delete(jobId);
 }
 
-function renderFriendsError(root, message, userId) {
-  const content = root.querySelector("[data-friends-content]");
-  const state = createFriendsMessage(message);
+function createRetryButton(handler) {
   const retry = document.createElement("button");
   retry.className = "rx-inline-retry";
   retry.type = "button";
   retry.textContent = "Retry";
-  retry.addEventListener("click", () => loadFriends(userId), { once: true });
-  state.append(retry);
-  content.className = "rx-friends-state";
-  content.replaceChildren(state);
+  retry.addEventListener("click", handler, { once: true });
+  return retry;
 }
 
-function renderFriendsBlocked(root) {
-  const content = root.querySelector("[data-friends-content]");
-  root.querySelector("[data-friends-count]").textContent = "";
-  content.className = "rx-friends-state";
-  content.replaceChildren(
-    createFriendsMessage("Load your Roblox account to see your friends."),
-  );
-}
-
-function createFriendsMessage(message) {
+function createInlineState(message) {
   const state = document.createElement("div");
   const text = document.createElement("p");
   state.className = "rx-inline-state";
@@ -561,6 +1193,73 @@ function sendMessage(message) {
 
       resolve(response.data);
     });
+  });
+}
+
+const homeComponents = [
+  ["rx-home-search", HomeSearch],
+  ["rx-friends-list", FriendsList],
+  ["rx-game-feed", GameFeed],
+  ["rx-home-app", HomeApp],
+];
+const componentRegistry = window.customElements;
+
+if (componentRegistry) {
+  homeComponents.forEach(([name, constructor]) => {
+    if (!componentRegistry.get(name)) {
+      componentRegistry.define(name, constructor);
+    }
+  });
+} else {
+  // Chrome's isolated content-script world may not expose a custom element registry.
+  // The MAIN-world page bridge relays lifecycle callbacks to these controllers.
+  const componentControllers = new Map(homeComponents);
+  const relayedComponents = new Map();
+
+  document.addEventListener(COMPONENT_CONNECTED_EVENT, (event) => {
+    let detail;
+
+    try {
+      detail = JSON.parse(event.detail);
+    } catch {
+      return;
+    }
+
+    const { id, name } = detail;
+    const controller = componentControllers.get(name);
+
+    if (
+      !controller ||
+      !(event.target instanceof HTMLElement) ||
+      event.target.localName !== name
+    ) {
+      return;
+    }
+
+    const descriptors = Object.getOwnPropertyDescriptors(controller.prototype);
+    delete descriptors.constructor;
+    Object.defineProperties(event.target, descriptors);
+    relayedComponents.set(id, event.target);
+    event.target.connectedCallback();
+  });
+  document.addEventListener(COMPONENT_DISCONNECTED_EVENT, (event) => {
+    let detail;
+
+    try {
+      detail = JSON.parse(event.detail);
+    } catch {
+      return;
+    }
+
+    const { id, name } = detail;
+    const controller = componentControllers.get(name);
+    const element = relayedComponents.get(id);
+
+    if (controller?.prototype.disconnectedCallback && element) {
+      controller.prototype.disconnectedCallback.call(element);
+    }
+
+    relayedComponents.delete(id);
   });
 }
 
