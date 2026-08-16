@@ -141,7 +141,7 @@ rx-home-search {
 
 .rx-topbar-tools {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) auto auto;
+  grid-template-columns: minmax(150px, 1fr) repeat(3, auto);
   align-items: center;
   gap: 8px;
 }
@@ -318,6 +318,22 @@ rx-home-search {
 .rx-top-icon:hover,
 .rx-top-icon:focus-visible {
   background: var(--rx-surface-3);
+}
+
+.rx-robux-balance {
+  width: auto;
+  min-width: 32px;
+  grid-auto-flow: column;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.rx-robux-balance .rx-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .rx-sidebar {
@@ -1433,7 +1449,7 @@ rx-home-search {
   }
 
   .rx-topbar-tools {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .rx-search-panel {

@@ -137,14 +137,38 @@ async function fetchHomeBootstrap() {
     );
   }
 
+  const [avatarUrl, robux] = await Promise.all([
+    fetchUserHeadshot(id),
+    fetchUserRobux(),
+  ]);
+
   return {
     user: {
-      avatarUrl: await fetchUserHeadshot(id),
+      avatarUrl,
       displayName,
       id,
+      robux,
       username,
     },
   };
+}
+
+async function fetchUserRobux() {
+  try {
+    const payload = await fetchJsonWithRetry(
+      "https://economy.roblox.com/v1/user/currency",
+      {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      },
+    );
+    const robux = payload?.robux;
+
+    return Number.isSafeInteger(robux) && robux >= 0 ? robux : null;
+  } catch {
+    // The profile remains usable when the balance endpoint is unavailable.
+    return null;
+  }
 }
 
 async function fetchUserHeadshot(userId) {
