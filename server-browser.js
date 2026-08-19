@@ -1,7 +1,7 @@
 (() => {
   const SERVER_BROWSER_CONFIG = Object.freeze({
     concurrentRequests: 20,
-    maxPages: 20,
+    maxPages: 100,
   });
   const LIVE_RENDER_INTERVAL_MS = 1000;
   const ROOT_ID = "roblox-extension-server-browser";
@@ -38,7 +38,7 @@
   function mountForCurrentPage() {
     const placeId = getPlaceIdFromUrl();
 
-    if (!placeId) {
+    if (!placeId || !isGameInstancesRoute()) {
       destroyActiveBrowser();
       return;
     }
@@ -70,11 +70,12 @@
       pagesFetched: 0,
       placeId,
       processedCount: 0,
+      requestSortOrder: null,
       renderPending: false,
       renderTimer: null,
       servers: [],
-      sortBy: "players",
-      status: "loading",
+      sortBy: "players-asc",
+      status: "awaiting-choice",
       totalCount: 0,
       truncated: false,
     };
@@ -83,37 +84,10 @@
     activeBrowser = { placeId, root, state };
     bindControls(root, state);
     render(state);
-    loadServers(state);
   }
 
   function findMountAnchor() {
-    const selectors = [
-      "#game-instances",
-      "[data-testid='game-instances']",
-      ".game-instances",
-      ".game-server-list",
-    ];
-
-    for (const selector of selectors) {
-      const element = document.querySelector(selector);
-
-      if (element?.parentElement) {
-        return element;
-      }
-    }
-
-    const fallback = document.querySelector(
-      "#game-detail-page, .game-detail-page, main",
-    );
-
-    if (!fallback) {
-      return null;
-    }
-
-    const marker = document.createElement("div");
-    marker.className = "roblox-extension-server-browser-anchor";
-    fallback.appendChild(marker);
-    return marker;
+    return document.querySelector("#rbx-public-running-games");
   }
 
   function createBrowserRoot() {
@@ -138,7 +112,26 @@
           Actualizar
         </button>
       </div>
-      <div class="roblox-extension-server-browser__filters">
+      <div
+        class="roblox-extension-server-browser__order-choice"
+        data-view="order-choice"
+      >
+        <h3>¿Qué servidores quieres cargar primero?</h3>
+        <p>Elige el orden antes de iniciar el análisis.</p>
+        <div class="roblox-extension-server-browser__order-actions">
+          <button type="button" data-load-order="Desc">
+            Más jugadores primero
+          </button>
+          <button type="button" data-load-order="Asc">
+            Menos jugadores primero
+          </button>
+        </div>
+      </div>
+      <div
+        class="roblox-extension-server-browser__filters"
+        data-view="filters"
+        hidden
+      >
         <label>
           <span>Ubicación</span>
           <select data-control="location">
@@ -148,7 +141,8 @@
         <label>
           <span>Ordenar por</span>
           <select data-control="sort">
-            <option value="players">Menos jugadores</option>
+            <option value="players-desc">Más jugadores</option>
+            <option value="players-asc">Menos jugadores</option>
             <option value="fps">Mayor FPS</option>
           </select>
         </label>
@@ -175,6 +169,16 @@
   }
 
   function bindControls(root, state) {
+    root.querySelectorAll("[data-load-order]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (state.status !== "awaiting-choice") {
+          return;
+        }
+
+        startServerLoad(state, button.dataset.loadOrder);
+      });
+    });
+
     root
       .querySelector('[data-control="location"]')
       .addEventListener("change", (event) => {
@@ -196,21 +200,32 @@
           return;
         }
 
-        state.generation = Symbol("server-browser-refresh");
-        state.cachedCount = 0;
-        state.failureReasons.clear();
-        state.failedCount = 0;
-        state.locationFilter = "all";
-        state.pagesFetched = 0;
-        state.processedCount = 0;
-        state.servers = [];
-        state.status = "loading";
-        state.totalCount = 0;
-        state.truncated = false;
-        cancelScheduledRender(state);
-        render(state);
-        loadServers(state);
+        startServerLoad(state, state.requestSortOrder);
       });
+  }
+
+  function startServerLoad(state, sortOrder) {
+    if (sortOrder !== "Asc" && sortOrder !== "Desc") {
+      return;
+    }
+
+    state.generation = Symbol("server-browser-load");
+    state.cachedCount = 0;
+    state.errorMessage = "";
+    state.failureReasons.clear();
+    state.failedCount = 0;
+    state.locationFilter = "all";
+    state.pagesFetched = 0;
+    state.processedCount = 0;
+    state.requestSortOrder = sortOrder;
+    state.servers = [];
+    state.sortBy = sortOrder === "Desc" ? "players-desc" : "players-asc";
+    state.status = "loading";
+    state.totalCount = 0;
+    state.truncated = false;
+    cancelScheduledRender(state);
+    render(state);
+    loadServers(state);
   }
 
   async function loadServers(state) {
@@ -220,6 +235,7 @@
       const result = await sendMessage({
         maxPages: SERVER_BROWSER_CONFIG.maxPages,
         placeId: state.placeId,
+        sortOrder: state.requestSortOrder,
         type: "FETCH_PUBLIC_SERVERS",
       });
 
@@ -363,15 +379,25 @@
     const progress = root.querySelector('[data-view="progress"]');
     const message = root.querySelector('[data-view="message"]');
     const groupsRoot = root.querySelector('[data-view="groups"]');
+    const orderChoice = root.querySelector('[data-view="order-choice"]');
+    const filters = root.querySelector('[data-view="filters"]');
+    const sortSelect = root.querySelector('[data-control="sort"]');
     const refreshButton = root.querySelector(
       ".roblox-extension-server-browser__refresh",
     );
 
+    const isAwaitingChoice = state.status === "awaiting-choice";
+    orderChoice.hidden = !isAwaitingChoice;
+    filters.hidden = isAwaitingChoice;
+    refreshButton.hidden = isAwaitingChoice;
+    sortSelect.value = state.sortBy;
     refreshButton.disabled =
       state.status === "loading" || state.status === "analyzing";
     updateLocationOptions(root, state);
 
-    if (state.status === "loading") {
+    if (isAwaitingChoice) {
+      progress.textContent = "";
+    } else if (state.status === "loading") {
       progress.textContent = "Buscando servidores públicos…";
     } else if (state.status === "analyzing") {
       const cachedText = state.cachedCount
@@ -407,16 +433,10 @@
     ) {
       message.hidden = false;
       message.textContent = `Se analizaron los primeros ${state.totalCount} servidores (${SERVER_BROWSER_CONFIG.maxPages} páginas) para evitar esperas excesivas.`;
-    } else if (
-      state.status === "complete" &&
-      state.totalCount === 0
-    ) {
+    } else if (state.status === "complete" && state.totalCount === 0) {
       message.hidden = false;
       message.textContent = "No hay servidores públicos disponibles.";
-    } else if (
-      state.status === "complete" &&
-      state.servers.length === 0
-    ) {
+    } else if (state.status === "complete" && state.servers.length === 0) {
       message.hidden = false;
       const topFailure = getTopFailureReason(state.failureReasons);
       message.textContent = topFailure
@@ -505,7 +525,9 @@
       .sort((left, right) =>
         left.locationLabel.localeCompare(right.locationLabel),
       )
-      .forEach((group) => fragment.appendChild(createServerGroup(group, state)));
+      .forEach((group) =>
+        fragment.appendChild(createServerGroup(group, state)),
+      );
 
     groupsRoot.replaceChildren(fragment);
   }
@@ -538,14 +560,8 @@
     const stats = document.createElement("div");
     stats.className = "roblox-extension-server-card__stats";
     stats.append(
-      createStat(
-        "Jugadores",
-        `${server.players}/${server.maxPlayers}`,
-      ),
-      createStat(
-        "FPS",
-        server.fps === null ? "—" : formatNumber(server.fps),
-      ),
+      createStat("Jugadores", `${server.players}/${server.maxPlayers}`),
+      createStat("FPS", server.fps === null ? "—" : formatNumber(server.fps)),
     );
 
     const button = document.createElement("button");
@@ -617,8 +633,7 @@
 
     if (!result.ok) {
       message.hidden = false;
-      message.textContent =
-        result.message || "No se pudo abrir Roblox Player.";
+      message.textContent = result.message || "No se pudo abrir Roblox Player.";
     }
   }
 
@@ -646,6 +661,12 @@
       return (left, right) =>
         compareNullableDescending(left.fps, right.fps) ||
         left.players - right.players;
+    }
+
+    if (sortBy === "players-desc") {
+      return (left, right) =>
+        right.players - left.players ||
+        compareNullableDescending(left.fps, right.fps);
     }
 
     return (left, right) =>
@@ -719,17 +740,12 @@
   }
 
   function getCountryFlag(countryCode) {
-    if (
-      typeof countryCode !== "string" ||
-      !/^[A-Z]{2}$/.test(countryCode)
-    ) {
+    if (typeof countryCode !== "string" || !/^[A-Z]{2}$/.test(countryCode)) {
       return "";
     }
 
     return String.fromCodePoint(
-      ...[...countryCode].map((character) =>
-        character.codePointAt(0) + 127397,
-      ),
+      ...[...countryCode].map((character) => character.codePointAt(0) + 127397),
     );
   }
 
@@ -750,11 +766,21 @@
     return Number.isSafeInteger(placeId) && placeId > 0 ? placeId : null;
   }
 
+  function isGameInstancesRoute() {
+    const hashRoute = window.location.hash.replace(/^#!/, "");
+
+    return (
+      hashRoute === "/game-instances" ||
+      window.location.pathname.endsWith("/game-instances")
+    );
+  }
+
   function isCurrent(state, generation) {
     return (
       activeBrowser?.state === state &&
       state.generation === generation &&
-      getPlaceIdFromUrl() === state.placeId
+      getPlaceIdFromUrl() === state.placeId &&
+      isGameInstancesRoute()
     );
   }
 

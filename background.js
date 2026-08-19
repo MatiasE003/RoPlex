@@ -106,7 +106,11 @@ async function handleMessage(message, sender) {
 
   if (message.type === "FETCH_PUBLIC_SERVERS") {
     await maybeCleanupExpiredCache();
-    return fetchPublicServers(placeId, message.maxPages);
+    return fetchPublicServers(
+      placeId,
+      message.maxPages,
+      parsePublicServerSortOrder(message.sortOrder),
+    );
   }
 
   if (message.type === "GET_SERVER_REGION") {
@@ -1055,7 +1059,18 @@ function parseJobId(value) {
   return value;
 }
 
-async function fetchPublicServers(placeId, requestedMaxPages) {
+function parsePublicServerSortOrder(value) {
+  if (value !== "Asc" && value !== "Desc") {
+    throw new ApiError(
+      "INVALID_SERVER_SORT_ORDER",
+      "El orden de los servidores no es válido.",
+    );
+  }
+
+  return value;
+}
+
+async function fetchPublicServers(placeId, requestedMaxPages, sortOrder) {
   const maxPages = clampInteger(
     requestedMaxPages,
     1,
@@ -1083,7 +1098,7 @@ async function fetchPublicServers(placeId, requestedMaxPages) {
     const url = new URL(
       `https://games.roblox.com/v1/games/${placeId}/servers/Public`,
     );
-    url.searchParams.set("sortOrder", "Asc");
+    url.searchParams.set("sortOrder", sortOrder);
     url.searchParams.set("excludeFullGames", "true");
     url.searchParams.set(
       "limit",
