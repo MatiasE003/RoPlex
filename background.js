@@ -40,6 +40,7 @@ const dataCenterLocationRequests = new Map();
 const homeFriendPreviewCache = new Map();
 let homeDiscoveryCache = null;
 let homeDiscoveryRequest = null;
+let badgeCsrfToken = null;
 
 class ApiError extends Error {
   constructor(code, message, details = {}) {
@@ -102,6 +103,14 @@ async function handleMessage(message, sender) {
     return fetchHomeRecommended();
   }
 
+  if (message.type === "GET_BADGE_INVENTORY_CONTEXT") {
+    return getBadgeInventoryContext(sender);
+  }
+
+  if (message.type === "DELETE_INVENTORY_BADGES") {
+    return deleteInventoryBadges(parseBadgeIds(message.badgeIds), sender);
+  }
+
   const placeId = parsePlaceId(message.placeId);
 
   if (message.type === "FETCH_PUBLIC_SERVERS") {
@@ -120,6 +129,217 @@ async function handleMessage(message, sender) {
   }
 
   throw new ApiError("UNKNOWN_REQUEST", "La operación solicitada no existe.");
+}
+
+async function getBadgeInventoryContext(sender) {
+  const inventoryUserId = getInventoryUserIdFromSender(sender);
+  const authenticatedUserId = await fetchAuthenticatedUserId();
+
+  return {
+    isOwnInventory: inventoryUserId === authenticatedUserId,
+    userId: authenticatedUserId,
+  };
+}
+
+async function deleteInventoryBadges(badgeIds, sender) {
+  const inventoryUserId = getInventoryUserIdFromSender(sender);
+  const authenticatedUserId = await fetchAuthenticatedUserId();
+
+  if (inventoryUserId !== authenticatedUserId) {
+    throw new ApiError(
+      "NOT_OWN_INVENTORY",
+      "Solo puedes eliminar insignias desde tu propio inventario.",
+    );
+  }
+
+  const deletedBadgeIds = [];
+  const failures = [];
+
+  for (const badgeId of badgeIds) {
+    try {
+      await deleteOwnBadge(badgeId, inventoryUserId);
+      deletedBadgeIds.push(badgeId);
+    } catch (error) {
+      failures.push({ badgeId, error: serializeError(error) });
+    }
+  }
+
+  return { deletedBadgeIds, failures };
+}
+
+async function fetchAuthenticatedUserId() {
+  const payload = await fetchJsonWithRetry(
+    "https://users.roblox.com/v1/users/authenticated",
+    {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    },
+  );
+  const userId = Number(payload?.id);
+
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    throw new ApiError(
+      "INVALID_USER_RESPONSE",
+      "Roblox devolvió un usuario autenticado inválido.",
+    );
+  }
+
+  return userId;
+}
+
+async function deleteOwnBadge(badgeId, inventoryUserId) {
+  let csrfRefreshes = 0;
+  let shouldRevalidateUser = false;
+  let transientAttempts = 0;
+
+  while (transientAttempts <= SERVER_BROWSER_CONFIG.maxRetries) {
+    let response;
+
+    try {
+      if (shouldRevalidateUser) {
+        const authenticatedUserId = await fetchAuthenticatedUserId();
+
+        if (inventoryUserId !== authenticatedUserId) {
+          throw new ApiError(
+            "NOT_OWN_INVENTORY",
+            "Solo puedes eliminar insignias desde tu propio inventario.",
+          );
+        }
+      }
+
+      const headers = { Accept: "application/json" };
+
+      if (badgeCsrfToken) {
+        headers["X-CSRF-TOKEN"] = badgeCsrfToken;
+      }
+
+      response = await fetch(
+        `https://badges.roblox.com/v1/user/badges/${badgeId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers,
+        },
+      );
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+
+      if (transientAttempts === SERVER_BROWSER_CONFIG.maxRetries) {
+        throw new ApiError(
+          "NETWORK_ERROR",
+          "No se pudo conectar con la API de insignias de Roblox.",
+          { cause: error?.message ?? "" },
+        );
+      }
+
+      await delay(getBackoffDelay(transientAttempts));
+      shouldRevalidateUser = true;
+      transientAttempts += 1;
+      continue;
+    }
+
+    if (response.status === 403) {
+      const nextCsrfToken = response.headers.get("x-csrf-token");
+
+      if (
+        nextCsrfToken &&
+        nextCsrfToken !== badgeCsrfToken &&
+        csrfRefreshes < 2
+      ) {
+        badgeCsrfToken = nextCsrfToken;
+        csrfRefreshes += 1;
+        shouldRevalidateUser = true;
+        continue;
+      }
+    }
+
+    if (response.ok || response.status === 404) {
+      return;
+    }
+
+    if (
+      (response.status === 429 || response.status >= 500) &&
+      transientAttempts < SERVER_BROWSER_CONFIG.maxRetries
+    ) {
+      await delay(getRetryDelay(response, transientAttempts));
+      shouldRevalidateUser = true;
+      transientAttempts += 1;
+      continue;
+    }
+
+    if (response.status === 401) {
+      throw new ApiError(
+        "AUTH_REQUIRED",
+        "Inicia sesión nuevamente en Roblox para eliminar insignias.",
+        { httpStatus: response.status },
+      );
+    }
+
+    if (response.status === 403) {
+      throw new ApiError(
+        "BADGE_DELETE_FORBIDDEN",
+        "Roblox rechazó la autorización para eliminar esta insignia.",
+        { httpStatus: response.status },
+      );
+    }
+
+    throw new ApiError(
+      response.status === 429
+        ? "RATE_LIMITED"
+        : response.status >= 500
+          ? "ROBLOX_UNAVAILABLE"
+          : "BADGE_DELETE_FAILED",
+      response.status === 429
+        ? "Roblox limitó temporalmente la eliminación de insignias."
+        : response.status >= 500
+          ? "La API de insignias de Roblox no está disponible temporalmente."
+        : `No se pudo eliminar la insignia (HTTP ${response.status}).`,
+      { httpStatus: response.status },
+    );
+  }
+}
+
+function getInventoryUserIdFromSender(sender) {
+  let pathname;
+
+  try {
+    pathname = new URL(sender?.url ?? "").pathname;
+  } catch {
+    pathname = "";
+  }
+
+  const match = pathname.match(
+    /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?users\/(\d+)\/inventory\/?$/i,
+  );
+  const userId = Number(match?.[1]);
+
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    throw new ApiError(
+      "INVALID_INVENTORY_PAGE",
+      "La solicitud no proviene de un inventario válido de Roblox.",
+    );
+  }
+
+  return userId;
+}
+
+function parseBadgeIds(value) {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 1 ||
+    typeof value[0] !== "number" ||
+    !Number.isSafeInteger(value[0]) ||
+    value[0] <= 0
+  ) {
+    throw new ApiError(
+      "INVALID_BADGE_IDS",
+      "La solicitud debe contener una insignia válida.",
+    );
+  }
+
+  return value;
 }
 
 async function fetchHomeBootstrap() {

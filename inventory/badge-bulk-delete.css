@@ -1,0 +1,147 @@
+.roblox-extension-badge-page {
+  padding-top: 48px;
+  position: relative;
+}
+
+.roblox-extension-badge-bulk-delete {
+  --badge-delete-accent: #335fff;
+  --badge-delete-border: #b8b8b8;
+  --badge-delete-danger: #d92727;
+  --badge-delete-muted: #60646c;
+  --badge-delete-surface: #ffffff;
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  max-width: min(100%, 680px);
+  position: absolute;
+  right: 0;
+  top: 2px;
+  z-index: 5;
+}
+
+body.dark-theme .roblox-extension-badge-bulk-delete,
+.dark-theme .roblox-extension-badge-bulk-delete {
+  --badge-delete-border: #606162;
+  --badge-delete-muted: #b8b8b8;
+  --badge-delete-surface: #232527;
+}
+
+.roblox-extension-badge-button {
+  background: var(--badge-delete-accent);
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  min-height: 36px;
+  padding: 8px 14px;
+}
+
+.roblox-extension-badge-button.is-secondary {
+  background: var(--badge-delete-surface);
+  color: inherit;
+  outline: 1px solid var(--badge-delete-border);
+}
+
+.roblox-extension-badge-button.is-danger {
+  background: var(--badge-delete-danger);
+}
+
+.roblox-extension-badge-button:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+.roblox-extension-badge-button:focus-visible {
+  outline: 2px solid var(--badge-delete-accent);
+  outline-offset: 2px;
+}
+
+.roblox-extension-badge-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.roblox-extension-badge-status {
+  color: var(--badge-delete-muted);
+  font-size: 13px;
+  line-height: 18px;
+  max-width: 330px;
+}
+
+.roblox-extension-badge-status.is-error {
+  color: var(--badge-delete-danger);
+}
+
+.roblox-extension-badge-status.is-success {
+  color: #16863b;
+}
+
+#assetsItems > li.roblox-extension-badge-selectable {
+  cursor: pointer;
+}
+
+#assetsItems > li.roblox-extension-badge-selectable .item-card-container {
+  border-radius: 6px;
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+  position: relative;
+  transition: outline-color 120ms ease, transform 120ms ease;
+}
+
+#assetsItems > li.roblox-extension-badge-selectable:hover .item-card-container {
+  outline-color: color-mix(in srgb, var(--badge-delete-accent, #335fff) 45%, transparent);
+}
+
+#assetsItems > li.roblox-extension-badge-selectable.is-selected .item-card-container {
+  outline-color: var(--badge-delete-accent, #335fff);
+  transform: translateY(-2px);
+}
+
+.roblox-extension-badge-check {
+  align-items: center;
+  background: var(--badge-delete-accent, #335fff);
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 30%);
+  color: #ffffff;
+  display: none;
+  font-size: 14px;
+  font-weight: 700;
+  height: 26px;
+  justify-content: center;
+  line-height: 1;
+  pointer-events: none;
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 26px;
+  z-index: 3;
+}
+
+.roblox-extension-badge-selectable.is-selected .roblox-extension-badge-check {
+  display: flex;
+}
+
+@media (max-width: 767px) {
+  .roblox-extension-badge-page {
+    padding-top: 0;
+  }
+
+  .roblox-extension-badge-bulk-delete {
+    justify-content: flex-start;
+    margin-bottom: 14px;
+    max-width: none;
+    position: static;
+    width: 100%;
+  }
+
+  .roblox-extension-badge-status {
+    flex-basis: 100%;
+    max-width: none;
+  }
+}

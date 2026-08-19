@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Roblox Extension",
-  "version": "0.12.3",
-  "description": "Custom Roblox home and geolocated public server browser.",
+  "version": "0.13.0",
+  "description": "Custom Roblox home, badge inventory tools, and geolocated public server browser.",
   "permissions": [
     "declarativeNetRequestWithHostAccess",
     "scripting",
@@ -10,6 +10,7 @@
   ],
   "host_permissions": [
     "https://apis.roblox.com/*",
+    "https://badges.roblox.com/*",
     "https://www.roblox.com/*",
     "https://contacts.roblox.com/*",
     "https://economy.roblox.com/*",
@@ -39,6 +40,15 @@
       "css": ["content.css"],
       "js": ["content.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.roblox.com/users/*/inventory*",
+        "https://www.roblox.com/*/users/*/inventory*"
+      ],
+      "css": ["inventory/badge-bulk-delete.css"],
+      "js": ["inventory/badge-bulk-delete.js"],
+      "run_at": "document_idle"
     },
     {
       "matches": [
