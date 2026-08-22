@@ -4,11 +4,12 @@
   const ROUTE_CHANGE_EVENT = "roblox-extension:route-change";
   const COMPONENT_CONNECTED_EVENT = "roblox-extension:component-connected";
   const COMPONENT_DISCONNECTED_EVENT = "roblox-extension:component-disconnected";
-  const HOME_COMPONENTS = [
+  const EXTENSION_COMPONENTS = [
     "rx-home-search",
     "rx-friends-list",
     "rx-game-feed",
     "rx-home-app",
+    "rx-profile-app",
   ];
 
   if (window.__robloxExtensionServerBridgeInstalled) {
@@ -17,7 +18,7 @@
 
   window.__robloxExtensionServerBridgeInstalled = true;
 
-  installHomeComponents();
+  installExtensionComponents();
   installRouteChangeBridge();
 
   document.addEventListener(JOIN_REQUEST_EVENT, async (event) => {
@@ -76,10 +77,10 @@
     });
   }
 
-  function installHomeComponents() {
+  function installExtensionComponents() {
     let nextComponentId = 0;
 
-    HOME_COMPONENTS.forEach((name) => {
+    EXTENSION_COMPONENTS.forEach((name) => {
       if (customElements.get(name)) {
         return;
       }

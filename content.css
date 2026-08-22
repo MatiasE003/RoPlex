@@ -1,5 +1,7 @@
 html.roblox-extension-home-active,
-html.roblox-extension-home-active body {
+html.roblox-extension-home-active body,
+html.roblox-extension-profile-active,
+html.roblox-extension-profile-active body {
   min-width: 320px;
   min-height: 100%;
   margin: 0 !important;
@@ -11,7 +13,14 @@ html.roblox-extension-home-active body > :not(#roblox-extension-home) {
   display: none !important;
 }
 
-#roblox-extension-home {
+html.roblox-extension-profile-active
+  body
+  > :not(#roblox-extension-profile):not(#roblox-extension-profile-mode-toggle) {
+  display: none !important;
+}
+
+#roblox-extension-home,
+#roblox-extension-profile {
   --rx-bg: #101318;
   --rx-surface: #171b21;
   --rx-surface-2: #1c2129;
@@ -33,6 +42,7 @@ html.roblox-extension-home-active body > :not(#roblox-extension-home) {
 }
 
 rx-home-app,
+rx-profile-app,
 rx-friends-list,
 rx-game-feed {
   display: block;
@@ -42,26 +52,33 @@ rx-home-search {
   display: contents;
 }
 
-#roblox-extension-home[hidden] {
+#roblox-extension-home[hidden],
+#roblox-extension-profile[hidden] {
   display: none;
 }
 
 #roblox-extension-home,
-#roblox-extension-home * {
+#roblox-extension-home *,
+#roblox-extension-profile,
+#roblox-extension-profile * {
   box-sizing: border-box;
 }
 
-#roblox-extension-home a {
+#roblox-extension-home a,
+#roblox-extension-profile a {
   color: inherit;
   text-decoration: none;
 }
 
 #roblox-extension-home button,
-#roblox-extension-home input {
+#roblox-extension-home input,
+#roblox-extension-profile button,
+#roblox-extension-profile input {
   font: inherit;
 }
 
-#roblox-extension-home .rx-icon {
+#roblox-extension-home .rx-icon,
+#roblox-extension-profile .rx-icon {
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
@@ -72,7 +89,8 @@ rx-home-search {
   stroke-width: 1.8;
 }
 
-#roblox-extension-home .rx-icon-defs {
+#roblox-extension-home .rx-icon-defs,
+#roblox-extension-profile .rx-icon-defs {
   position: absolute;
   width: 0;
   height: 0;
@@ -1375,7 +1393,8 @@ rx-home-search {
 }
 
 @media (max-width: 900px) {
-  #roblox-extension-home {
+  #roblox-extension-home,
+  #roblox-extension-profile {
     --rx-sidebar: 76px;
   }
 
@@ -1427,7 +1446,8 @@ rx-home-search {
 }
 
 @media (max-width: 640px) {
-  #roblox-extension-home {
+  #roblox-extension-home,
+  #roblox-extension-profile {
     --rx-sidebar: 0px;
     --rx-topbar: 52px;
   }

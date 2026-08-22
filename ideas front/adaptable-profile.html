@@ -1,0 +1,1733 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1280" />
+    <title>Roblox Profile Adaptable Concept</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23fff' d='M5 3h24v24H5z' transform='rotate(12 17 15)'/%3E%3Cpath fill='%2312181f' d='M12 10h9v9h-9z' transform='rotate(12 17 15)'/%3E%3C/svg%3E" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101318;
+        --surface: #171b21;
+        --surface-2: #1c2129;
+        --surface-3: #252b35;
+        --border: #2c333e;
+        --border-soft: rgba(255, 255, 255, 0.07);
+        --text: #f7f7f8;
+        --text-2: #c2c8d0;
+        --muted: #858d99;
+        --blue: #4f91ff;
+        --blue-soft: rgba(79, 145, 255, 0.14);
+        --green: #45d483;
+        --gold: #f2bd5a;
+        --topbar: 48px;
+        --sidebar: 252px;
+        --radius: 10px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        min-width: 1180px;
+        background: var(--bg);
+      }
+
+      body {
+        min-width: 1180px;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Builder Sans", "Helvetica Neue", Arial, sans-serif;
+        font-size: 14px;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+        cursor: default;
+      }
+
+      img {
+        display: block;
+      }
+
+      .icon {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 auto;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .topbar {
+        position: fixed;
+        z-index: 30;
+        inset: 0 0 auto;
+        height: var(--topbar);
+        display: grid;
+        grid-template-columns: 156px minmax(340px, 1fr) minmax(280px, 430px);
+        align-items: center;
+        gap: 18px;
+        padding: 0 15px;
+        border-bottom: 1px solid var(--border);
+        background: #191d23;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 17px;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+      }
+
+      .brand-mark {
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        background: #fff;
+        transform: rotate(12deg);
+      }
+
+      .brand-mark::after {
+        width: 9px;
+        height: 9px;
+        background: #191d23;
+        content: "";
+      }
+
+      .primary-nav {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+      }
+
+      .primary-nav a {
+        min-width: 92px;
+        padding: 7px 16px;
+        border-radius: 7px;
+        color: var(--text-2);
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+      }
+
+      .topbar-tools {
+        display: grid;
+        grid-template-columns: minmax(150px, 1fr) auto auto auto;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .search {
+        height: 32px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        border: 1px solid #363d48;
+        border-radius: 8px;
+        background: #111419;
+        color: var(--muted);
+      }
+
+      .search .icon {
+        width: 17px;
+      }
+
+      .search input {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--text);
+      }
+
+      .search input::placeholder {
+        color: #7e8692;
+      }
+
+      .top-icon {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #d1d5db;
+      }
+
+      .top-icon .icon {
+        width: 19px;
+      }
+
+      .robux {
+        height: 30px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 0 8px;
+        border-radius: 7px;
+        color: var(--text-2);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .robux-symbol {
+        width: 14px;
+        height: 14px;
+        border: 2px solid currentColor;
+        transform: rotate(45deg);
+      }
+
+      .sidebar {
+        position: fixed;
+        z-index: 20;
+        inset: var(--topbar) auto 0 0;
+        width: var(--sidebar);
+        padding: 14px 12px;
+        border-right: 1px solid var(--border);
+        background: #14181e;
+      }
+
+      .user-summary {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        margin-bottom: 12px;
+        padding: 8px;
+        border-radius: 9px;
+      }
+
+      .account-avatar {
+        width: 38px;
+        height: 38px;
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+        border: 1px solid #3b424d;
+        border-radius: 50%;
+        background: linear-gradient(145deg, #788697, #343b46);
+        color: white;
+        font-weight: 800;
+      }
+
+      .user-summary strong,
+      .user-summary span {
+        display: block;
+      }
+
+      .user-summary strong {
+        font-size: 13px;
+      }
+
+      .user-summary span {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .side-nav {
+        display: grid;
+        gap: 3px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .side-nav a {
+        position: relative;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 11px;
+        border-radius: 8px;
+        color: #b5bbc4;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .side-nav a.active {
+        background: var(--blue-soft);
+        color: #fff;
+      }
+
+      .side-nav a.active::before {
+        position: absolute;
+        left: -12px;
+        width: 3px;
+        height: 24px;
+        border-radius: 0 3px 3px 0;
+        background: var(--blue);
+        content: "";
+      }
+
+      .nav-count {
+        margin-left: auto;
+        padding: 2px 7px;
+        border-radius: 12px;
+        background: var(--surface-3);
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .side-divider {
+        height: 1px;
+        margin: 13px 8px;
+        background: var(--border);
+      }
+
+      .premium-link {
+        position: absolute;
+        right: 12px;
+        bottom: 16px;
+        left: 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--text-2);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .premium-icon {
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border-radius: 7px;
+        background: #2d3541;
+      }
+
+      .premium-icon .icon {
+        width: 16px;
+      }
+
+      main {
+        margin-left: var(--sidebar);
+        padding: calc(var(--topbar) + 26px) 32px 80px;
+      }
+
+      .profile-shell {
+        width: min(1260px, 100%);
+        margin: 0 auto;
+      }
+
+      .profile-card {
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+      }
+
+      .profile-cover {
+        position: relative;
+        height: 208px;
+        overflow: hidden;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        background:
+          radial-gradient(circle at 72% 30%, rgba(89, 155, 255, 0.3), transparent 25%),
+          radial-gradient(circle at 16% 85%, rgba(98, 91, 219, 0.34), transparent 29%),
+          linear-gradient(118deg, #172333 0%, #202b43 42%, #18334a 100%);
+      }
+
+      .profile-cover::before,
+      .profile-cover::after {
+        position: absolute;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 50%;
+        content: "";
+      }
+
+      .profile-cover::before {
+        top: -214px;
+        right: 8%;
+        width: 510px;
+        height: 510px;
+        box-shadow: 0 0 0 48px rgba(255, 255, 255, 0.018), 0 0 0 98px rgba(255, 255, 255, 0.012);
+      }
+
+      .profile-cover::after {
+        right: -50px;
+        bottom: -130px;
+        width: 280px;
+        height: 280px;
+        background: rgba(255, 255, 255, 0.018);
+      }
+
+      .cover-grid {
+        position: absolute;
+        inset: 0;
+        opacity: 0.19;
+        background-image: linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+        background-size: 42px 42px;
+        mask-image: linear-gradient(90deg, #000, transparent 70%);
+      }
+
+      .cover-label {
+        position: absolute;
+        top: 22px;
+        right: 24px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 7px;
+        background: rgba(11, 15, 22, 0.34);
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .cover-label::before {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #77aaff;
+        box-shadow: 0 0 10px #77aaff;
+        content: "";
+      }
+
+      .profile-identity {
+        position: relative;
+        min-height: 162px;
+        display: grid;
+        grid-template-columns: 182px minmax(0, 1fr) auto;
+        align-items: end;
+        gap: 22px;
+        padding: 0 28px 25px;
+      }
+
+      .profile-avatar {
+        position: relative;
+        width: 164px;
+        height: 164px;
+        align-self: start;
+        margin-top: -76px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 5px solid var(--surface);
+        border-radius: 50%;
+        background: linear-gradient(145deg, #8ca4c5 0%, #52657f 52%, #252d39 100%);
+        box-shadow: 0 7px 25px rgba(0, 0, 0, 0.35);
+      }
+
+      .profile-avatar > img {
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .avatar-glow {
+        position: absolute;
+        top: 18px;
+        width: 104px;
+        height: 104px;
+        border-radius: 50%;
+        background: rgba(208, 229, 255, 0.17);
+        filter: blur(2px);
+      }
+
+      .block-avatar {
+        position: relative;
+        width: 92px;
+        height: 126px;
+        margin-top: 24px;
+      }
+
+      .block-head {
+        position: absolute;
+        z-index: 3;
+        top: 0;
+        left: 29px;
+        width: 40px;
+        height: 42px;
+        border-radius: 9px 9px 12px 12px;
+        background: #efc795;
+        box-shadow: inset -7px -5px 0 rgba(119, 76, 42, 0.12);
+      }
+
+      .block-hair {
+        position: absolute;
+        z-index: 4;
+        top: -5px;
+        left: 25px;
+        width: 49px;
+        height: 21px;
+        border-radius: 18px 18px 6px 7px;
+        background: #272a31;
+        transform: rotate(-4deg);
+      }
+
+      .block-hair::after {
+        position: absolute;
+        top: 11px;
+        right: 2px;
+        width: 11px;
+        height: 18px;
+        border-radius: 0 7px 7px 5px;
+        background: #272a31;
+        content: "";
+      }
+
+      .block-face {
+        position: absolute;
+        z-index: 5;
+        top: 22px;
+        left: 40px;
+        width: 19px;
+        height: 8px;
+        border-bottom: 2px solid #845b47;
+        border-radius: 50%;
+      }
+
+      .block-face::before,
+      .block-face::after {
+        position: absolute;
+        top: -4px;
+        width: 3px;
+        height: 3px;
+        border-radius: 50%;
+        background: #46372f;
+        content: "";
+      }
+
+      .block-face::before {
+        left: 1px;
+      }
+
+      .block-face::after {
+        right: 1px;
+      }
+
+      .block-torso {
+        position: absolute;
+        z-index: 2;
+        top: 39px;
+        left: 21px;
+        width: 58px;
+        height: 62px;
+        border-radius: 8px 8px 4px 4px;
+        background: linear-gradient(135deg, #3f81e9, #245ab7);
+        box-shadow: inset -10px -8px 0 rgba(14, 39, 86, 0.16);
+      }
+
+      .block-torso::before {
+        position: absolute;
+        top: 18px;
+        left: 16px;
+        width: 24px;
+        height: 24px;
+        border: 3px solid rgba(255, 255, 255, 0.74);
+        transform: rotate(12deg);
+        content: "";
+      }
+
+      .block-arm {
+        position: absolute;
+        z-index: 1;
+        top: 43px;
+        width: 20px;
+        height: 59px;
+        border-radius: 8px;
+        background: #efc795;
+      }
+
+      .block-arm.left {
+        left: 3px;
+        transform: rotate(6deg);
+      }
+
+      .block-arm.right {
+        right: 0;
+        transform: rotate(-6deg);
+      }
+
+      .block-leg {
+        position: absolute;
+        top: 93px;
+        width: 27px;
+        height: 48px;
+        border-radius: 3px 3px 7px 7px;
+        background: #202938;
+      }
+
+      .block-leg.left {
+        left: 22px;
+      }
+
+      .block-leg.right {
+        right: 11px;
+      }
+
+      .presence-dot {
+        position: absolute;
+        z-index: 7;
+        right: 8px;
+        bottom: 13px;
+        width: 21px;
+        height: 21px;
+        border: 5px solid var(--surface);
+        border-radius: 50%;
+        background: var(--green);
+      }
+
+      .identity-copy {
+        min-width: 0;
+        padding-bottom: 3px;
+      }
+
+      .identity-heading {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+
+      .identity-heading h1 {
+        margin: 0;
+        font-size: 30px;
+        letter-spacing: -0.035em;
+      }
+
+      .verified {
+        width: 19px;
+        height: 19px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--blue);
+        color: #fff;
+      }
+
+      .verified .icon {
+        width: 12px;
+        height: 12px;
+        stroke-width: 2.7;
+      }
+
+      .username {
+        margin: 5px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .identity-meta {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-top: 15px;
+        color: var(--text-2);
+        font-size: 11px;
+      }
+
+      .identity-meta span {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .identity-meta .icon {
+        width: 14px;
+        height: 14px;
+        color: var(--muted);
+      }
+
+      .online-label {
+        color: #71e6a4;
+        font-weight: 700;
+      }
+
+      .online-label::before {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--green);
+        content: "";
+      }
+
+      .profile-actions {
+        display: flex;
+        gap: 8px;
+        align-self: center;
+      }
+
+      .primary-button,
+      .secondary-button,
+      .more-button {
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 0 14px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .primary-button {
+        border: 1px solid var(--blue);
+        background: var(--blue);
+        color: #fff;
+      }
+
+      .secondary-button,
+      .more-button {
+        border: 1px solid #353d48;
+        background: var(--surface-2);
+        color: var(--text-2);
+      }
+
+      .primary-button .icon,
+      .secondary-button .icon {
+        width: 15px;
+      }
+
+      .more-button {
+        width: 36px;
+        padding: 0;
+      }
+
+      .profile-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 142px) 1fr;
+        min-height: 72px;
+        padding: 0 28px 0 232px;
+        border-top: 1px solid var(--border);
+        background: #15191f;
+      }
+
+      .profile-stat {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        border-right: 1px solid var(--border);
+      }
+
+      .profile-stat:first-child {
+        border-left: 1px solid var(--border);
+      }
+
+      .profile-stat b,
+      .profile-stat span {
+        display: block;
+        text-align: center;
+      }
+
+      .profile-stat b {
+        font-size: 16px;
+      }
+
+      .profile-stat span {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .profile-status {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-left: 22px;
+        color: var(--text-2);
+        font-size: 11px;
+      }
+
+      .status-mark {
+        width: 30px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+        border-radius: 8px;
+        background: var(--blue-soft);
+        color: #82b2ff;
+      }
+
+      .status-mark .icon {
+        width: 15px;
+      }
+
+      .profile-tabs {
+        height: 58px;
+        display: flex;
+        align-items: end;
+        gap: 30px;
+        margin: 18px 0 24px;
+        padding: 0 4px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .profile-tabs a {
+        position: relative;
+        height: 58px;
+        display: flex;
+        align-items: center;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .profile-tabs a.active {
+        color: var(--text);
+      }
+
+      .profile-tabs a.active::after {
+        position: absolute;
+        right: 0;
+        bottom: -1px;
+        left: 0;
+        height: 2px;
+        border-radius: 2px 2px 0 0;
+        background: var(--blue);
+        content: "";
+      }
+
+      .profile-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: start;
+        gap: 20px;
+      }
+
+      .profile-main,
+      .profile-rail {
+        display: grid;
+        gap: 20px;
+      }
+
+      .panel {
+        border: 1px solid var(--border-soft);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+
+      .panel-content {
+        padding: 20px;
+      }
+
+      .panel-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 15px;
+      }
+
+      .panel-heading h2 {
+        margin: 0;
+        font-size: 17px;
+        letter-spacing: -0.02em;
+      }
+
+      .panel-heading h2 span {
+        margin-left: 5px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .section-note {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 600;
+      }
+
+      .see-all {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: #9da5b0;
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .see-all .icon {
+        width: 13px;
+      }
+
+      .wearing-panel {
+        margin-bottom: 20px;
+      }
+
+      .wearing-card {
+        position: relative;
+        min-height: 436px;
+        display: grid;
+        grid-template-columns: 390px minmax(0, 1fr);
+        align-items: stretch;
+        gap: 28px;
+        overflow: hidden;
+        padding: 24px;
+        border: 1px solid #334052;
+        border-radius: 11px;
+        background: linear-gradient(105deg, #131820 0%, #182231 58%, #1d2f43 100%);
+      }
+
+      .wearing-card::after {
+        position: absolute;
+        top: -150px;
+        right: -80px;
+        width: 420px;
+        height: 420px;
+        border-radius: 50%;
+        background: rgba(79, 145, 255, 0.08);
+        content: "";
+      }
+
+      .wearing-avatar {
+        position: relative;
+        z-index: 1;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 9px;
+        background: radial-gradient(circle at 50% 38%, #526987 0%, #2c3747 48%, #171d25 100%);
+      }
+
+      .wearing-avatar::after {
+        position: absolute;
+        right: 24px;
+        bottom: 20px;
+        padding: 6px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 6px;
+        background: rgba(12, 16, 22, 0.72);
+        color: #bdc8d6;
+        font-size: 8px;
+        font-style: normal;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        content: "3D avatar";
+      }
+
+      .wearing-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        transform: scale(1.4);
+        transform-origin: center 52%;
+      }
+
+      .wearing-copy {
+        position: relative;
+        z-index: 1;
+        min-width: 0;
+      }
+
+      .wearing-copy h3 {
+        margin: 3px 0 6px;
+        font-size: 20px;
+        letter-spacing: -0.02em;
+      }
+
+      .wearing-copy > p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .wearing-items {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      .wearing-item {
+        min-width: 0;
+        min-height: 112px;
+        display: grid;
+        grid-template-columns: 100px minmax(0, 1fr);
+        align-items: center;
+        gap: 12px;
+        padding: 9px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgba(15, 19, 25, 0.62);
+      }
+
+      .wearing-item-image {
+        width: 100px;
+        height: 92px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background: var(--surface-3);
+      }
+
+      .wearing-item-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .wearing-item strong,
+      .wearing-item span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .wearing-item strong {
+        font-size: 11px;
+        line-height: 1.35;
+      }
+
+      .wearing-item span {
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 9px;
+      }
+
+      .wearing-item .item-price {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 9px;
+        color: var(--text-2);
+        font-size: 9px;
+        font-weight: 800;
+      }
+
+      .item-price::before {
+        width: 9px;
+        height: 9px;
+        border: 1px solid currentColor;
+        content: "";
+        transform: rotate(45deg);
+      }
+
+      .empty-state {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        padding: 18px;
+        border: 1px dashed #39414c;
+        border-radius: 9px;
+        background: #15191f;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .empty-state i {
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        border-radius: 8px;
+        background: var(--surface-3);
+      }
+
+      .empty-state .icon {
+        width: 16px;
+      }
+
+      .about-copy {
+        margin: 0;
+        color: var(--text-2);
+        font-size: 12px;
+        line-height: 1.65;
+      }
+
+      .about-copy strong {
+        color: var(--text);
+      }
+
+      .about-tags {
+        display: flex;
+        gap: 7px;
+        margin-top: 16px;
+      }
+
+      .about-tag {
+        padding: 6px 9px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--surface-2);
+        color: var(--muted);
+        font-size: 9px;
+        font-weight: 700;
+      }
+
+      .creation-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 13px;
+      }
+
+      .creation-card {
+        min-width: 0;
+      }
+
+      .creation-thumbnail {
+        position: relative;
+        overflow: hidden;
+        aspect-ratio: 16 / 9;
+        border: 1px solid var(--border-soft);
+        border-radius: 9px;
+        background: var(--surface-2);
+      }
+
+      .creation-thumbnail img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .creation-rank {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        padding: 4px 6px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 5px;
+        background: rgba(12, 16, 22, 0.78);
+        color: #d8dde4;
+        font-size: 8px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .creation-card h3 {
+        margin: 9px 0 6px;
+        overflow: hidden;
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .game-stats {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 9px;
+      }
+
+      .game-stats span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .game-stats .icon {
+        width: 11px;
+        height: 11px;
+      }
+
+      .favorite-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .favorite-card {
+        min-width: 0;
+        display: grid;
+        grid-template-columns: 88px minmax(0, 1fr);
+        grid-template-rows: 1fr 1fr;
+        column-gap: 10px;
+        align-items: center;
+      }
+
+      .favorite-card img {
+        width: 88px;
+        height: 88px;
+        grid-row: 1 / 3;
+        border: 1px solid var(--border-soft);
+        border-radius: 9px;
+        object-fit: cover;
+      }
+
+      .favorite-card strong {
+        display: block;
+        align-self: end;
+        margin: 0 0 3px;
+        overflow: hidden;
+        font-size: 10px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .favorite-card span {
+        display: block;
+        align-self: start;
+        margin-top: 1px;
+        color: var(--muted);
+        font-size: 8px;
+      }
+
+      .friend-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .friend-card {
+        min-width: 0;
+        display: grid;
+        grid-template-columns: 66px minmax(0, 1fr);
+        grid-template-rows: 1fr 1fr;
+        align-items: center;
+        column-gap: 12px;
+        padding: 11px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #15191f;
+        text-align: left;
+      }
+
+      .friend-avatar {
+        position: relative;
+        width: 66px;
+        height: 66px;
+        display: grid;
+        place-items: center;
+        grid-row: 1 / 3;
+        margin: 0;
+        border: 1px solid #39424f;
+        border-radius: 50%;
+        background: linear-gradient(145deg, var(--avatar-a), var(--avatar-b));
+        color: rgba(255, 255, 255, 0.93);
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      .friend-card.online .friend-avatar::after {
+        position: absolute;
+        right: 1px;
+        bottom: 2px;
+        width: 9px;
+        height: 9px;
+        border: 3px solid var(--surface);
+        border-radius: 50%;
+        background: var(--green);
+        content: "";
+      }
+
+      .friend-card strong,
+      .friend-card span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .friend-card strong {
+        align-self: end;
+        font-size: 11px;
+      }
+
+      .friend-card span {
+        align-self: start;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 9px;
+      }
+
+      .profile-details {
+        display: grid;
+        gap: 13px;
+      }
+
+      .account-info .profile-details {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .account-info .profile-detail {
+        min-height: 58px;
+        padding: 0 13px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: #15191f;
+      }
+
+      .profile-detail {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .profile-detail span {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .profile-detail .icon {
+        width: 14px;
+        height: 14px;
+      }
+
+      .profile-detail b {
+        color: var(--text-2);
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .detail-divider {
+        height: 1px;
+        margin: 3px 0;
+        background: var(--border);
+      }
+
+      .social-links {
+        display: flex;
+        gap: 7px;
+        margin-top: 16px;
+      }
+
+      .social-link {
+        height: 30px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 9px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--surface-2);
+        color: var(--text-2);
+        font-size: 9px;
+        font-weight: 700;
+      }
+
+      .social-link .icon {
+        width: 13px;
+      }
+
+      .collection-list,
+      .group-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .group-list {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .collection-item,
+      .group-item {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 11px;
+        padding: 9px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: #15191f;
+      }
+
+      .collection-visual,
+      .group-visual {
+        width: 48px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border-radius: 8px;
+        background: linear-gradient(145deg, #3c4655, #202630);
+        color: #aab4c2;
+      }
+
+      .collection-visual .icon {
+        width: 22px;
+      }
+
+      .group-visual {
+        border-radius: 50%;
+        background: linear-gradient(145deg, #4f6f9d, #232d3c);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .collection-copy,
+      .group-copy {
+        min-width: 0;
+      }
+
+      .collection-copy strong,
+      .collection-copy span,
+      .group-copy strong,
+      .group-copy span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .collection-copy strong,
+      .group-copy strong {
+        font-size: 10px;
+      }
+
+      .collection-copy span,
+      .group-copy span {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 8px;
+      }
+
+      .item-count {
+        color: var(--muted);
+        font-size: 9px;
+        font-weight: 700;
+      }
+
+      .badge-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+
+      .badge-item {
+        min-width: 0;
+        min-height: 76px;
+        display: grid;
+        grid-template-columns: 54px minmax(0, 1fr);
+        align-items: center;
+        gap: 11px;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: #15191f;
+        text-align: left;
+      }
+
+      .badge-mark {
+        width: 54px;
+        height: 54px;
+        display: grid;
+        place-items: center;
+        margin: 0;
+        border: 1px solid #3b4654;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 30%, #46566d, #202732 70%);
+        color: var(--gold);
+      }
+
+      .badge-mark .icon {
+        width: 23px;
+      }
+
+      .badge-copy {
+        min-width: 0;
+      }
+
+      .badge-copy strong,
+      .badge-copy span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .badge-copy strong {
+        color: var(--text-2);
+        font-size: 9px;
+      }
+
+      .badge-copy span {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 8px;
+      }
+
+      .footer {
+        margin-top: 45px;
+        padding: 25px 0;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 10px;
+        text-align: center;
+      }
+
+      .footer-links {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-bottom: 16px;
+        color: var(--text-2);
+        font-size: 11px;
+      }
+
+      .chat-dock {
+        position: fixed;
+        z-index: 25;
+        right: 12px;
+        bottom: 0;
+        width: 272px;
+        border: 1px solid var(--border);
+        border-bottom: 0;
+        border-radius: 9px 9px 0 0;
+        background: #1a1f26;
+        box-shadow: 0 -5px 22px rgba(0, 0, 0, 0.24);
+      }
+
+      .chat-header {
+        height: 38px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .chat-header .icon {
+        width: 17px;
+      }
+
+      .chat-header span {
+        margin-left: auto;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" aria-hidden="true" style="position: absolute">
+      <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></symbol>
+      <symbol id="home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8"></path><path d="M5 10v10h14V10M9 20v-6h6v6"></path></symbol>
+      <symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></symbol>
+      <symbol id="user-plus" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"></circle><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6"></path></symbol>
+      <symbol id="message" viewBox="0 0 24 24"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"></path></symbol>
+      <symbol id="users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path></symbol>
+      <symbol id="avatar" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M7 14h10l2 7H5l2-7Z"></path></symbol>
+      <symbol id="box" viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Z"></path><path d="M4 7v10l8 4 8-4V7M12 11v10"></path></symbol>
+      <symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></symbol>
+      <symbol id="bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"></path></symbol>
+      <symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.4 6A7 7 0 0 0 9 7L6.5 6l-2 3.4 2 1.5a7 7 0 0 0 0 2L4.5 14l2 3.4L9 17a7 7 0 0 0 1.5.9l.3 2.6h4l.3-2.6a7 7 0 0 0 1.5-.9l2.4.5 2-3.4-2-1.2a7 7 0 0 0 .1-1Z"></path></symbol>
+      <symbol id="chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+      <symbol id="play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z"></path></symbol>
+      <symbol id="like" viewBox="0 0 24 24"><path d="M7 10v11H3V10h4Zm0 9h10a2 2 0 0 0 2-1.6l1.5-7A2 2 0 0 0 18.5 8H14l.7-3.2A2.3 2.3 0 0 0 12.5 2L7 10"></path></symbol>
+      <symbol id="people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"></circle><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M17 14a5 5 0 0 1 4 5v1"></path></symbol>
+      <symbol id="premium" viewBox="0 0 24 24"><path d="m12 3 3 6 6 .8-4.5 4.5 1.1 6.2L12 17.6l-5.6 2.9 1.1-6.2L3 9.8 9 9l3-6Z"></path></symbol>
+      <symbol id="check" viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"></path></symbol>
+      <symbol id="calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M16 3v4M8 3v4M3 10h18"></path></symbol>
+      <symbol id="location" viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="2.5"></circle></symbol>
+      <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></symbol>
+      <symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"></path></symbol>
+      <symbol id="link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1 1"></path><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1-1"></path></symbol>
+      <symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+      <symbol id="cube" viewBox="0 0 24 24"><path d="m12 2 9 5-9 5-9-5 9-5Z"></path><path d="m3 7 9 5 9-5M3 7v10l9 5 9-5V7M12 12v10"></path></symbol>
+      <symbol id="award" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"></circle><path d="m8.5 12-1 9 4.5-3 4.5 3-1-9"></path></symbol>
+      <symbol id="star" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"></path></symbol>
+      <symbol id="flag" viewBox="0 0 24 24"><path d="M5 22V4M5 5h12l-2 4 2 4H5"></path></symbol>
+    </svg>
+
+    <header class="topbar" data-component="global-navigation">
+      <a class="brand" href="#" aria-label="Roblox Home"><i class="brand-mark"></i><span>ROBLOX</span></a>
+      <nav class="primary-nav" aria-label="Roblox sections"><a href="#">Home</a><a href="#">Charts</a><a href="#">Marketplace</a><a href="#">Create</a></nav>
+      <div class="topbar-tools">
+        <label class="search"><svg class="icon"><use href="#search"></use></svg><input type="search" placeholder="Search" /></label>
+        <button class="top-icon" aria-label="Notifications"><svg class="icon"><use href="#bell"></use></svg></button>
+        <div class="robux" aria-label="Robux balance"><i class="robux-symbol"></i><span>1,240</span></div>
+        <button class="top-icon" aria-label="Settings"><svg class="icon"><use href="#gear"></use></svg></button>
+      </div>
+    </header>
+
+    <aside class="sidebar" data-component="sidebar-navigation">
+      <div class="user-summary" data-entity="authenticated-user"><div class="account-avatar">M</div><div><strong>Mat</strong><span>@matiasbuilds</span></div></div>
+      <nav aria-label="Account navigation">
+        <ul class="side-nav">
+          <li><a href="#"><svg class="icon"><use href="#home"></use></svg><span>Home</span></a></li>
+          <li><a class="active" href="#"><svg class="icon"><use href="#user"></use></svg><span>Profile</span></a></li>
+          <li><a href="#"><svg class="icon"><use href="#message"></use></svg><span>Messages</span><b class="nav-count">2</b></a></li>
+          <li><a href="#friends"><svg class="icon"><use href="#users"></use></svg><span>Friends</span><b class="nav-count">5</b></a></li>
+          <li><a href="#"><svg class="icon"><use href="#avatar"></use></svg><span>Avatar</span></a></li>
+          <li><a href="#collections"><svg class="icon"><use href="#box"></use></svg><span>Inventory</span></a></li>
+          <li><a href="#"><svg class="icon"><use href="#more"></use></svg><span>More</span></a></li>
+        </ul>
+      </nav>
+      <div class="side-divider"></div>
+      <a class="premium-link" href="#"><i class="premium-icon"><svg class="icon"><use href="#premium"></use></svg></i><span>Get Premium</span></a>
+    </aside>
+
+    <main id="main-content">
+      <div class="profile-shell">
+        <header class="profile-card" data-component="profile-header">
+          <div class="profile-cover"><div class="cover-grid"></div></div>
+          <div class="profile-identity">
+            <div class="profile-avatar">
+              <img src="https://tr.rbxcdn.com/30DAY-Avatar-6C34C156A76588B7C4967EEDB93DF337-Png/420/420/Avatar/Png/noFilter" alt="MatiasXD128 avatar" />
+              <i class="presence-dot" title="Online"></i>
+            </div>
+            <div class="identity-copy">
+              <div class="identity-heading"><h1>MatiasXD128</h1></div>
+              <p class="username">@MatiasXD128</p>
+              <div class="identity-meta"><span class="online-label">Online on Roblox</span><span><svg class="icon"><use href="#calendar"></use></svg>Joined October 31, 2017</span></div>
+            </div>
+            <div class="profile-actions" aria-label="Profile actions">
+              <button class="primary-button"><svg class="icon"><use href="#user-plus"></use></svg>Add Friend</button>
+              <button class="secondary-button"><svg class="icon"><use href="#message"></use></svg>Message</button>
+              <button class="secondary-button">Follow</button>
+              <button class="more-button" aria-label="More actions"><svg class="icon"><use href="#more"></use></svg></button>
+            </div>
+          </div>
+          <div class="profile-stats">
+            <div class="profile-stat"><b>3</b><span>Friends</span></div>
+            <div class="profile-stat"><b>31</b><span>Followers</span></div>
+            <div class="profile-stat"><b>1</b><span>Following</span></div>
+            <div class="profile-status"><i class="status-mark"><svg class="icon"><use href="#message"></use></svg></i><span>gg bot<br />jg diff</span></div>
+          </div>
+        </header>
+
+        <nav class="profile-tabs" aria-label="Profile sections"><a class="active" href="#overview">About</a><a href="#wearing">Avatar</a><a href="#creations">Creations</a><a href="#favorites">Favorites</a><a href="#friends">Friends</a><a href="#groups">Communities</a><a href="#badges">Badges</a></nav>
+
+        <section class="panel wearing-panel" id="wearing" aria-labelledby="wearing-title">
+          <div class="panel-content">
+            <div class="panel-heading"><h2 id="wearing-title">Currently Wearing</h2><span class="see-all">View in 3D</span></div>
+            <article class="wearing-card">
+              <div class="wearing-avatar"><img src="https://tr.rbxcdn.com/30DAY-Avatar-6C34C156A76588B7C4967EEDB93DF337-Png/420/420/Avatar/Png/noFilter" alt="Current MatiasXD128 avatar" /></div>
+              <div class="wearing-copy">
+                <h3>MatiasXD128's avatar</h3>
+                <p>Six highlighted items from the public avatar currently equipped.</p>
+                <div class="wearing-items">
+                  <article class="wearing-item"><div class="wearing-item-image"><img src="https://tr.rbxcdn.com/180DAY-5c5726641d574c12905592843ff82b86/150/150/FaceAccessory/Png/noFilter" alt="Nerd Glasses" /></div><div><strong>Nerd Glasses</strong><span>Face accessory</span><span class="item-price">76</span></div></article>
+                  <article class="wearing-item"><div class="wearing-item-image"><img src="https://tr.rbxcdn.com/180DAY-288e938cc087964be2132f72189e0780/150/150/EmoteAnimation/Png/noFilter" alt="The Fate of Ophelia" /></div><div><strong>The Fate of Ophelia</strong><span>Emote animation</span><span class="item-price">44</span></div></article>
+                  <article class="wearing-item"><div class="wearing-item-image"><img src="https://tr.rbxcdn.com/180DAY-aff20207982edb591f7e8c26eba0b636/150/150/EmoteAnimation/Png/noFilter" alt="Monkey" /></div><div><strong>Monkey</strong><span>Emote animation</span><span class="item-price">44</span></div></article>
+                  <article class="wearing-item"><div class="wearing-item-image"><img src="https://tr.rbxcdn.com/180DAY-20b128879a9e99763fe74ca6c3da18ec/150/150/EmoteAnimation/Png/noFilter" alt="Sweet Hug Pose V2" /></div><div><strong>Sweet Hug Pose V2</strong><span>Emote animation</span><span class="item-price">44</span></div></article>
+                  <article class="wearing-item"><div class="wearing-item-image"><img src="https://tr.rbxcdn.com/180DAY-a678e1c37753469c8d8e00fc5bf37fad/150/150/Shirt/Png/noFilter" alt="2026 T1 Uniform Jersey" /></div><div><strong>2026 T1 Uniform Jersey</strong><span>Classic shirt</span><span class="item-price">8</span></div></article>
+                  <article class="wearing-item"><div class="wearing-item-image"><img src="https://tr.rbxcdn.com/180DAY-0acd0262fb7786e9866e648d56fec6aa/150/150/Pants/Png/noFilter" alt="2026 T1 Uniform Pants" /></div><div><strong>2026 T1 Uniform Pants</strong><span>Classic pants</span><span class="item-price">5</span></div></article>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <div class="profile-layout" id="overview">
+          <div class="profile-main">
+            <section class="panel account-info" aria-labelledby="details-title">
+              <div class="panel-content">
+                <div class="panel-heading"><h2 id="details-title">Public Account Info</h2><span class="section-note">Available directly on the profile</span></div>
+                <div class="profile-details">
+                  <div class="profile-detail"><span><svg class="icon"><use href="#calendar"></use></svg>Joined</span><b>Oct 31, 2017</b></div>
+                  <div class="profile-detail"><span><svg class="icon"><use href="#user"></use></svg>User ID</span><b>428084836</b></div>
+                  <div class="profile-detail"><span><svg class="icon"><use href="#check"></use></svg>Verified badge</span><b>No</b></div>
+                  <div class="profile-detail"><span><svg class="icon"><use href="#flag"></use></svg>Account status</span><b>Active</b></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel" id="creations" aria-labelledby="creations-title">
+              <div class="panel-content">
+                <div class="panel-heading"><h2 id="creations-title">Creations</h2></div>
+                <div class="empty-state"><i><svg class="icon"><use href="#cube"></use></svg></i><span>This user has no public experiences.</span></div>
+              </div>
+            </section>
+
+            <section class="panel" id="favorites" aria-labelledby="favorites-title">
+              <div class="panel-content">
+                <div class="panel-heading"><h2 id="favorites-title">Favorites <span>3</span></h2><span class="section-note">All public favorites shown</span></div>
+                <div class="favorite-grid">
+                  <article class="favorite-card"><img src="https://tr.rbxcdn.com/180DAY-0bcbd3275ed1fc20674c79f187ab9046/256/256/Image/Webp/noFilter" alt="Taxi Simulator 2" /><strong>Taxi Simulator 2</strong><span>85% · 52 playing</span></article>
+                  <article class="favorite-card"><img src="https://tr.rbxcdn.com/180DAY-8d73c7e5dc3940664e17808f17a8f01e/256/256/Image/Webp/noFilter" alt="Pet Quest" /><strong>Pet Quest!</strong><span>97% · 21 playing</span></article>
+                  <article class="favorite-card"><img src="https://tr.rbxcdn.com/180DAY-fdcea589be8c48c3cf3ec9c3f20cf26b/256/256/Image/Webp/noFilter" alt="Car Crushers 2" /><strong>Car Crushers 2</strong><span>93% · 5.7K playing</span></article>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel" id="friends" aria-labelledby="friends-title">
+              <div class="panel-content">
+                <div class="panel-heading"><h2 id="friends-title">Friends <span>3</span></h2><span class="section-note">All friends shown</span></div>
+                <div class="friend-grid">
+                  <article class="friend-card" style="--avatar-a: #8a9db8; --avatar-b: #394758"><div class="friend-avatar">I</div><strong>Irisita♥</strong><span>Friend</span></article>
+                  <article class="friend-card" style="--avatar-a: #b37d88; --avatar-b: #49343d"><div class="friend-avatar">J</div><strong>xJEIMMYx117</strong><span>Friend</span></article>
+                  <article class="friend-card" style="--avatar-a: #8c8fc2; --avatar-b: #393a62"><div class="friend-avatar">M</div><strong>Mat</strong><span>Friend</span></article>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel" id="groups" aria-labelledby="groups-title">
+              <div class="panel-content">
+                <div class="panel-heading"><h2 id="groups-title">Communities <span>15</span></h2><span class="section-note">All communities shown</span></div>
+                <div class="group-list">
+                  <article class="group-item"><div class="group-visual">MG</div><div class="group-copy"><strong>MaplexHD's Group :3</strong><span>Owner · 5 members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #87725a, #41342a)">GC</div><div class="group-copy"><strong>Grow a Chicken Fighter</strong><span>Member · 5.4M+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #658e81, #293d37)">B1</div><div class="group-copy"><strong>Bees 1:1</strong><span>Member · 50.1K+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #6b86a5, #2c3b4d)">SS</div><div class="group-copy"><strong>Shield simulator</strong><span>Shield Player · 3.6K+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #9c7b58, #463727)">BD</div><div class="group-copy"><strong>Billion Duck Hunters</strong><span>Member · 2.5M+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #8e6570, #442f36)">WW</div><div class="group-copy"><strong>Weapon Williamson</strong><span>Member · 120.8K+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #667d9c, #2c3748)">WE</div><div class="group-copy"><strong>Wrestling Elephant Studio</strong><span>Member · 265.6K+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #806f9f, #372f46)">R!</div><div class="group-copy"><strong>Reset!</strong><span>Member · 184.2K+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #69917a, #2e4337)">FK</div><div class="group-copy"><strong>Free Kick by Mook</strong><span>Member · 2.9M+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #9c695e, #472f2b)">CB</div><div class="group-copy"><strong>CRAZY BRAZILIAN</strong><span>Member · 184K+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #718baa, #303d50)">PI</div><div class="group-copy"><strong>Peak Incrementals</strong><span>Member · 55K+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #698c91, #2d3f42)">SE</div><div class="group-copy"><strong>Salient Experiences</strong><span>Member · 762.9K+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #8a6c9c, #3e3047)">CS</div><div class="group-copy"><strong>Crzyy Studios</strong><span>Miembro · 158.5K+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #5f85a1, #293b49)">BB</div><div class="group-copy"><strong>BloxByte Games</strong><span>Fan · 1.2M+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                  <article class="group-item"><div class="group-visual" style="background: linear-gradient(145deg, #826eaa, #352d48)">AW</div><div class="group-copy"><strong>Arc I: Warriors</strong><span>Member · 931.9K+ members</span></div><svg class="icon" style="width: 13px; color: var(--muted)"><use href="#chevron"></use></svg></article>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel" id="badges" aria-labelledby="badges-title">
+              <div class="panel-content">
+                <div class="panel-heading"><h2 id="badges-title">Recent Badges <span>100+</span></h2><span class="section-note">Latest public awards</span></div>
+                <div class="badge-grid">
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#award"></use></svg></div><div class="badge-copy"><strong>Mesozoic Era</strong><span>Dinosaurs unlocked</span></div></article>
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#star"></use></svg></div><div class="badge-copy"><strong>Miocene Epoch Era</strong><span>Gorillas unlocked</span></div></article>
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#people"></use></svg></div><div class="badge-copy"><strong>Mythological Creatures</strong><span>Collection badge</span></div></article>
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#cube"></use></svg></div><div class="badge-copy"><strong>Cenozoic Era</strong><span>Horses unlocked</span></div></article>
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#award"></use></svg></div><div class="badge-copy"><strong>WELCOME</strong><span>Welcome badge</span></div></article>
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#star"></use></svg></div><div class="badge-copy"><strong>Rebirth!</strong><span>First rebirth</span></div></article>
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#people"></use></svg></div><div class="badge-copy"><strong>Tutorial Completed!</strong><span>Tutorial finished</span></div></article>
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#cube"></use></svg></div><div class="badge-copy"><strong>Welcome!</strong><span>Thanks for playing</span></div></article>
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#award"></use></svg></div><div class="badge-copy"><strong>Meet Bunny</strong><span>Found Bunny</span></div></article>
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#star"></use></svg></div><div class="badge-copy"><strong>Death Explorer</strong><span>Died five times</span></div></article>
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#people"></use></svg></div><div class="badge-copy"><strong>Death Commoner</strong><span>First death</span></div></article>
+                  <article class="badge-item"><div class="badge-mark"><svg class="icon"><use href="#cube"></use></svg></div><div class="badge-copy"><strong>Warm Welcome</strong><span>Visited Wonderland</span></div></article>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <footer class="footer">
+          <div class="footer-links"><a href="#">About Us</a><a href="#">Jobs</a><a href="#">Newsroom</a><a href="#">Parents</a><a href="#">Gift Cards</a><a href="#">Help</a><a href="#">Terms</a><a href="#">Accessibility</a><a href="#">Privacy</a></div>
+          <div>Static profile design reference. Roblox and its marks belong to Roblox Corporation.</div>
+        </footer>
+      </div>
+    </main>
+
+    <aside class="chat-dock" data-component="chat-dock"><div class="chat-header"><svg class="icon"><use href="#message"></use></svg>Chat <span>5</span></div></aside>
+  </body>
+</html>

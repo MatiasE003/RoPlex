@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Roblox Extension",
-  "version": "0.13.0",
-  "description": "Custom Roblox home, badge inventory tools, and geolocated public server browser.",
+  "version": "0.14.1",
+  "description": "Custom Roblox home and profiles, badge inventory tools, and geolocated public server browser.",
   "permissions": [
     "declarativeNetRequestWithHostAccess",
     "scripting",
@@ -10,6 +10,7 @@
   ],
   "host_permissions": [
     "https://apis.roblox.com/*",
+    "https://avatar.roblox.com/*",
     "https://badges.roblox.com/*",
     "https://www.roblox.com/*",
     "https://contacts.roblox.com/*",
@@ -17,6 +18,7 @@
     "https://friends.roblox.com/*",
     "https://games.roblox.com/*",
     "https://gamejoin.roblox.com/*",
+    "https://groups.roblox.com/*",
     "https://presence.roblox.com/*",
     "https://thumbnails.roblox.com/*",
     "https://users.roblox.com/*",
@@ -36,8 +38,8 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.roblox.com/home"],
-      "css": ["content.css"],
+      "matches": ["https://www.roblox.com/*"],
+      "css": ["content.css", "profile.css"],
       "js": ["content.js"],
       "run_at": "document_start"
     },
@@ -60,11 +62,7 @@
       "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://www.roblox.com/home",
-        "https://www.roblox.com/games/*",
-        "https://www.roblox.com/*/games/*"
-      ],
+      "matches": ["https://www.roblox.com/*"],
       "js": ["roblox-page-bridge.js"],
       "run_at": "document_start",
       "world": "MAIN"

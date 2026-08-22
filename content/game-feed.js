@@ -4,6 +4,7 @@ import {
   createInlineState,
   createRetryButton,
   formatCompactNumber,
+  handleHorizontalCarouselWheel,
 } from "./ui.js";
 
 // Stateful custom elements own their lifecycle and request state.
@@ -61,7 +62,7 @@ export class GameFeed extends HTMLElement {
     this.addUserEventListeners();
 
     if (!this.config.landscape) {
-      this.content.addEventListener("wheel", handleGameCarouselWheel, {
+      this.content.addEventListener("wheel", handleHorizontalCarouselWheel, {
         passive: false,
       });
     }
@@ -176,41 +177,6 @@ export class GameFeed extends HTMLElement {
       ? "rx-recommended-state"
       : "rx-game-carousel-state";
   }
-}
-
-function handleGameCarouselWheel(event) {
-  if (event.ctrlKey) {
-    return;
-  }
-
-  const carousel = event.currentTarget;
-  const rawDelta =
-    Math.abs(event.deltaY) >= Math.abs(event.deltaX)
-      ? event.deltaY
-      : event.deltaX;
-  const multiplier =
-    event.deltaMode === WheelEvent.DOM_DELTA_LINE
-      ? 32
-      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-        ? carousel.clientWidth
-        : 1;
-  const delta = rawDelta * multiplier;
-  const maximumScroll = carousel.scrollWidth - carousel.clientWidth;
-  const canMove =
-    (delta > 0 && carousel.scrollLeft < maximumScroll - 1) ||
-    (delta < 0 && carousel.scrollLeft > 1);
-
-  if (!delta) {
-    return;
-  }
-
-  event.preventDefault();
-
-  if (!canMove) {
-    return;
-  }
-
-  carousel.scrollLeft += delta;
 }
 
 // Presentation helpers are stateless: data in, DOM node out.

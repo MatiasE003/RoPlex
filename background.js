@@ -24,6 +24,7 @@ const GEOLOCATION_CACHE_KEY_PREFIX = "roblox-server-geolocation:";
 const GEOLOCATION_CACHE_VERSION = 1;
 const HOME_DISCOVERY_CACHE_TTL_MS = 30 * 1000;
 const HOME_FRIEND_PREVIEW_CACHE_TTL_MS = 5 * 60 * 1000;
+const PROFILE_BADGE_LIMIT = 16;
 let lastCacheCleanupAt = 0;
 let currentRegionChecksPerSecond =
   SERVER_BROWSER_CONFIG.initialRegionChecksPerSecond;
@@ -41,6 +42,8 @@ const homeFriendPreviewCache = new Map();
 let homeDiscoveryCache = null;
 let homeDiscoveryRequest = null;
 let badgeCsrfToken = null;
+let profileMutationCsrfToken = null;
+let profileMutationGate = Promise.resolve();
 
 class ApiError extends Error {
   constructor(code, message, details = {}) {
@@ -101,6 +104,48 @@ async function handleMessage(message, sender) {
 
   if (message.type === "GET_HOME_RECOMMENDED") {
     return fetchHomeRecommended();
+  }
+
+  if (message.type === "GET_PROFILE_BOOTSTRAP") {
+    return fetchProfileBootstrap(parseUserId(message.userId));
+  }
+
+  if (message.type === "GET_PROFILE_AVATAR") {
+    return fetchProfileAvatar(parseUserId(message.userId));
+  }
+
+  if (message.type === "GET_PROFILE_CREATIONS") {
+    return fetchProfileCreations(parseUserId(message.userId));
+  }
+
+  if (message.type === "GET_PROFILE_FAVORITES") {
+    return fetchProfileFavorites(parseUserId(message.userId));
+  }
+
+  if (message.type === "GET_PROFILE_FRIENDS") {
+    return fetchProfileFriends(parseUserId(message.userId));
+  }
+
+  if (message.type === "GET_PROFILE_COMMUNITIES") {
+    return fetchProfileCommunities(parseUserId(message.userId));
+  }
+
+  if (message.type === "GET_PROFILE_BADGES") {
+    return fetchProfileBadges(parseUserId(message.userId));
+  }
+
+  if (message.type === "REQUEST_PROFILE_FRIEND") {
+    const userId = parseUserId(message.userId);
+    return queueProfileMutation(() =>
+      mutateProfileRelationship(userId, "request-friendship", sender),
+    );
+  }
+
+  if (message.type === "FOLLOW_PROFILE_USER") {
+    const userId = parseUserId(message.userId);
+    return queueProfileMutation(() =>
+      mutateProfileRelationship(userId, "follow", sender),
+    );
   }
 
   if (message.type === "GET_BADGE_INVENTORY_CONTEXT") {
@@ -1022,24 +1067,10 @@ function normalizeHomeFriend(profile, presence, thumbnail, customNameValue) {
     return null;
   }
 
-  const presenceType = Number(presence?.userPresenceType);
-  const location = normalizeHomeText(presence?.lastLocation, 120);
   const gameId = normalizeHomeJobId(presence?.gameId);
   const placeId = Number(presence?.rootPlaceId || presence?.placeId);
   const universeId = Number(presence?.universeId);
-  let activity = "Offline";
-  let status = "offline";
-
-  if (presenceType === 2) {
-    activity = location && location !== "Website" ? location : "Playing";
-    status = "playing";
-  } else if (presenceType === 3) {
-    activity = "Roblox Studio";
-    status = "studio";
-  } else if (presenceType === 1) {
-    activity = "Online";
-    status = "online";
-  }
+  const { label: activity, status } = normalizeProfilePresence(presence);
 
   const imageUrl = thumbnail?.imageUrl;
 
@@ -1202,6 +1233,997 @@ function parseHomeSearchQuery(value) {
   }
 
   return query;
+}
+
+async function fetchProfileBootstrap(userId) {
+  const [viewer, profile, avatarUrl, presences, friends, followers, following] =
+    await Promise.all([
+      fetchOptionalProfileViewer(),
+      fetchProfileIdentity(userId),
+      fetchProfileFullAvatar(userId).catch(() => null),
+      fetchFriendPresences([userId]).catch(() => []),
+      fetchHomeSocialCount(userId, "friends"),
+      fetchHomeSocialCount(userId, "followers"),
+      fetchHomeSocialCount(userId, "followings"),
+    ]);
+  const customNames = viewer
+    ? await fetchFriendCustomNames([userId]).catch(() => [])
+    : [];
+  const customNameValue = customNames.find(
+    (entry) => Number(entry?.targetUserId) === userId,
+  )?.targetUserTag;
+  const presence = normalizeProfilePresence(
+    presences.find((entry) => Number(entry?.userId) === userId),
+  );
+  const isOwnProfile = viewer?.id === userId;
+  const [friendshipStatus, isFollowing] =
+    viewer && !isOwnProfile
+      ? await Promise.all([
+          fetchProfileFriendshipStatus(viewer.id, userId).catch(
+            () => "Unknown",
+          ),
+          queueProfileMutation(() => fetchProfileFollowingStatus(userId)).catch(
+            () => null,
+          ),
+        ])
+      : [null, null];
+
+  return {
+    friendshipStatus,
+    isOwnProfile,
+    isFollowing,
+    profile: {
+      ...profile,
+      avatarUrl,
+      customName: normalizeHomeText(customNameValue, 50) || null,
+      followerCount: followers,
+      followingCount: following,
+      friendCount: friends,
+      presenceLabel: presence.label,
+      presenceStatus: presence.status,
+    },
+    viewer,
+  };
+}
+
+async function fetchProfileFriendshipStatus(viewerUserId, profileUserId) {
+  const url = new URL(
+    `https://friends.roblox.com/v1/users/${viewerUserId}/friends/statuses`,
+  );
+  url.searchParams.set("userIds", String(profileUserId));
+  const payload = await fetchJsonWithRetry(url.href, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!Array.isArray(payload?.data)) {
+    throw new ApiError(
+      "INVALID_FRIENDSHIP_RESPONSE",
+      "Roblox devolvió un estado de amistad inválido.",
+    );
+  }
+
+  const status = payload.data.find(
+    (entry) => Number(entry?.id) === profileUserId,
+  )?.status;
+  const statusByValue = {
+    0: "NotFriends",
+    1: "Friends",
+    2: "RequestSent",
+    3: "RequestReceived",
+  };
+
+  if (!Object.hasOwn(statusByValue, status)) {
+    throw new ApiError(
+      "INVALID_FRIENDSHIP_RESPONSE",
+      "Roblox devolvió un estado de amistad desconocido.",
+    );
+  }
+
+  return statusByValue[status];
+}
+
+async function fetchProfileFollowingStatus(profileUserId) {
+  let csrfRefreshes = 0;
+
+  while (csrfRefreshes <= 2) {
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+
+    if (profileMutationCsrfToken) {
+      headers["X-CSRF-TOKEN"] = profileMutationCsrfToken;
+    }
+
+    const response = await fetch(
+      "https://friends.roblox.com/v1/user/following-exists",
+      {
+        body: JSON.stringify({ targetUserIds: [profileUserId] }),
+        credentials: "include",
+        headers,
+        method: "POST",
+      },
+    );
+
+    if (response.status === 403) {
+      const nextToken = response.headers.get("x-csrf-token");
+
+      if (nextToken && nextToken !== profileMutationCsrfToken) {
+        profileMutationCsrfToken = nextToken;
+        csrfRefreshes += 1;
+        continue;
+      }
+    }
+
+    if (!response.ok) {
+      throw new ApiError(
+        response.status === 401 ? "AUTH_REQUIRED" : "FOLLOW_STATUS_FAILED",
+        "No se pudo comprobar el estado de seguimiento.",
+        { httpStatus: response.status },
+      );
+    }
+
+    const payload = await response.json();
+    const following = Array.isArray(payload?.followings)
+      ? payload.followings.find(
+          (entry) => Number(entry?.userId) === profileUserId,
+        )
+      : null;
+
+    if (typeof following?.isFollowing !== "boolean") {
+      throw new ApiError(
+        "INVALID_FOLLOW_STATUS_RESPONSE",
+        "Roblox devolvió un estado de seguimiento inválido.",
+      );
+    }
+
+    return following.isFollowing;
+  }
+
+  throw new ApiError(
+    "FOLLOW_STATUS_FAILED",
+    "No se pudo comprobar el estado de seguimiento.",
+  );
+}
+
+function queueProfileMutation(operation) {
+  const scheduled = profileMutationGate.then(operation, operation);
+  profileMutationGate = scheduled.catch(() => {});
+  return scheduled;
+}
+
+async function fetchOptionalProfileViewer() {
+  try {
+    const payload = await fetchHomeBootstrap();
+    return payload.user;
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "AUTH_REQUIRED") {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function fetchProfileIdentity(userId) {
+  const payload = await fetchJsonWithRetry(
+    `https://users.roblox.com/v1/users/${userId}`,
+    {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    },
+  );
+  const id = Number(payload?.id);
+  const username = normalizeHomeText(payload?.name, 20);
+  const displayName = normalizeHomeText(payload?.displayName, 50);
+  const created = normalizeHomeText(payload?.created, 50);
+
+  if (
+    id !== userId ||
+    !Number.isSafeInteger(id) ||
+    !username ||
+    !displayName ||
+    !Number.isFinite(Date.parse(created))
+  ) {
+    throw new ApiError(
+      "INVALID_PROFILE_RESPONSE",
+      "Roblox devolvió una identidad de perfil inválida.",
+    );
+  }
+
+  return {
+    created,
+    description: normalizeHomeText(payload?.description, 1000),
+    displayName,
+    hasVerifiedBadge: payload?.hasVerifiedBadge === true,
+    id,
+    isBanned: payload?.isBanned === true,
+    username,
+  };
+}
+
+function normalizeProfilePresence(presence) {
+  const presenceType = Number(presence?.userPresenceType);
+  const location = normalizeHomeText(presence?.lastLocation, 120);
+  let label = "Offline";
+  let status = "offline";
+
+  if (presenceType === 2) {
+    label = location && location !== "Website" ? location : "Playing";
+    status = "playing";
+  } else if (presenceType === 3) {
+    label = "Roblox Studio";
+    status = "studio";
+  } else if (presenceType === 1) {
+    label = "Online";
+    status = "online";
+  }
+
+  return { label, status };
+}
+
+async function fetchProfileFullAvatar(userId) {
+  const url = new URL("https://thumbnails.roblox.com/v1/users/avatar");
+  url.searchParams.set("userIds", String(userId));
+  url.searchParams.set("size", "420x420");
+  url.searchParams.set("format", "Webp");
+  url.searchParams.set("isCircular", "false");
+  const payload = await fetchJsonWithRetry(url.href, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  const thumbnail = Array.isArray(payload?.data)
+    ? payload.data.find((entry) => Number(entry?.targetId) === userId)
+    : null;
+
+  return normalizeProfileImageUrl(thumbnail?.imageUrl);
+}
+
+async function fetchProfileAvatar(userId) {
+  const [payload, avatarUrl] = await Promise.all([
+    fetchJsonWithRetry(`https://avatar.roblox.com/v1/users/${userId}/avatar`, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    }),
+    fetchProfileFullAvatar(userId).catch(() => null),
+  ]);
+
+  if (!Array.isArray(payload?.assets)) {
+    throw new ApiError(
+      "INVALID_AVATAR_RESPONSE",
+      "Roblox devolvió un avatar inválido.",
+    );
+  }
+
+  const seenAssetIds = new Set();
+  const rawAssets = [...payload.assets];
+
+  if (Array.isArray(payload.emotes)) {
+    payload.emotes.forEach((emote) => {
+      rawAssets.push({
+        assetType: { name: "EmoteAnimation" },
+        id: emote?.assetId,
+        name: emote?.assetName,
+      });
+    });
+  }
+
+  const assets = rawAssets
+    .map((asset) => {
+      const id = Number(asset?.id);
+      const name = normalizeHomeText(asset?.name, 120);
+      const assetType = normalizeHomeText(asset?.assetType?.name, 50);
+
+      if (
+        !Number.isSafeInteger(id) ||
+        id <= 0 ||
+        !name ||
+        !assetType ||
+        seenAssetIds.has(id)
+      ) {
+        return null;
+      }
+
+      seenAssetIds.add(id);
+      return { assetType, id, name };
+    })
+    .filter(Boolean);
+  const [thumbnails, prices] = assets.length
+    ? await Promise.all([
+        fetchProfileAssetThumbnails(assets.map((asset) => asset.id)).catch(
+          () => [],
+        ),
+        fetchProfileAssetPrices(assets.map((asset) => asset.id)).catch(() => []),
+      ])
+    : [[], []];
+  const thumbnailByAssetId = new Map(
+    thumbnails.map((thumbnail) => [
+      Number(thumbnail?.targetId),
+      normalizeProfileImageUrl(thumbnail?.imageUrl),
+    ]),
+  );
+  const priceByAssetId = new Map(prices.map((price) => [price.id, price]));
+
+  return {
+    assets: assets.map((asset) => {
+      const price = priceByAssetId.get(asset.id);
+
+      return {
+        ...asset,
+        imageUrl: thumbnailByAssetId.get(asset.id) || null,
+        isForSale: price?.isForSale ?? null,
+        priceInRobux: price?.priceInRobux ?? null,
+      };
+    }),
+    avatarUrl,
+  };
+}
+
+async function fetchProfileAssetThumbnails(assetIds) {
+  const responses = await Promise.all(
+    chunkValues(assetIds, 50).map((batch) => {
+      const url = new URL("https://thumbnails.roblox.com/v1/assets");
+      url.searchParams.set("assetIds", batch.join(","));
+      url.searchParams.set("returnPolicy", "PlaceHolder");
+      url.searchParams.set("size", "150x150");
+      url.searchParams.set("format", "Webp");
+      url.searchParams.set("isCircular", "false");
+      return fetchJsonWithRetry(url.href, {
+        headers: { Accept: "application/json" },
+      });
+    }),
+  );
+
+  return responses.flatMap((response) =>
+    Array.isArray(response?.data) ? response.data : [],
+  );
+}
+
+async function fetchProfileAssetPrices(assetIds) {
+  const prices = [];
+
+  for (const batch of chunkValues(assetIds, 8)) {
+    const payloads = await Promise.all(
+      batch.map((assetId) =>
+        fetchJsonWithRetry(
+          `https://economy.roblox.com/v2/assets/${assetId}/details`,
+          {
+            credentials: "include",
+            headers: { Accept: "application/json" },
+          },
+        ).catch(() => null),
+      ),
+    );
+
+    payloads.forEach((payload, index) => {
+      const id = Number(payload?.AssetId || payload?.TargetId);
+      const rawPrice = payload?.PriceInRobux;
+      const priceInRobux =
+        rawPrice === null || rawPrice === undefined ? null : Number(rawPrice);
+
+      if (id !== batch[index] || !Number.isSafeInteger(id) || id <= 0) {
+        return;
+      }
+
+      prices.push({
+        id,
+        isForSale:
+          typeof payload?.IsForSale === "boolean" ? payload.IsForSale : null,
+        priceInRobux:
+          Number.isSafeInteger(priceInRobux) && priceInRobux >= 0
+            ? priceInRobux
+            : null,
+      });
+    });
+  }
+
+  return prices;
+}
+
+async function fetchProfileCreations(userId) {
+  const url = new URL(`https://games.roblox.com/v2/users/${userId}/games`);
+  url.searchParams.set("accessFilter", "Public");
+  url.searchParams.set("limit", "50");
+  url.searchParams.set("sortOrder", "Desc");
+  const payload = await fetchJsonWithRetry(url.href, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!Array.isArray(payload?.data)) {
+    throw new ApiError(
+      "INVALID_CREATIONS_RESPONSE",
+      "Roblox devolvió una lista de creaciones inválida.",
+    );
+  }
+
+  return {
+    games: await enrichProfileGames(payload.data.slice(0, 50)),
+    truncated: payload.data.length > 50 || hasNextPageCursor(payload),
+  };
+}
+
+async function fetchProfileFavorites(userId) {
+  const url = new URL(
+    `https://games.roblox.com/v2/users/${userId}/favorite/games`,
+  );
+  url.searchParams.set("accessFilter", "2");
+  url.searchParams.set("limit", "50");
+  url.searchParams.set("sortOrder", "Desc");
+  const payload = await fetchJsonWithRetry(url.href, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!Array.isArray(payload?.data)) {
+    throw new ApiError(
+      "INVALID_FAVORITES_RESPONSE",
+      "Roblox devolvió una lista de favoritos inválida.",
+    );
+  }
+
+  return {
+    games: await enrichProfileGames(payload.data.slice(0, 50)),
+    truncated: payload.data.length > 50 || hasNextPageCursor(payload),
+  };
+}
+
+async function enrichProfileGames(entries) {
+  const seenUniverseIds = new Set();
+  const validEntries = entries.filter((entry) => {
+    const universeId = Number(entry?.id);
+
+    if (
+      !Number.isSafeInteger(universeId) ||
+      universeId <= 0 ||
+      seenUniverseIds.has(universeId)
+    ) {
+      return false;
+    }
+
+    seenUniverseIds.add(universeId);
+    return true;
+  });
+  const universeIds = validEntries.map((entry) => Number(entry.id));
+
+  if (!universeIds.length) {
+    return [];
+  }
+
+  const [games, votes, icons] = await Promise.all([
+    fetchHomeGames(universeIds),
+    fetchHomeGameVotes(universeIds).catch(() => []),
+    fetchHomeGameIcons(universeIds).catch(() => []),
+  ]);
+  const gameByUniverseId = new Map(
+    games.map((game) => [Number(game?.id), game]),
+  );
+  const votesByUniverseId = new Map(
+    votes.map((vote) => [Number(vote?.id), vote]),
+  );
+  const iconByUniverseId = new Map(
+    icons.map((icon) => [Number(icon?.targetId), icon?.imageUrl]),
+  );
+
+  return validEntries
+    .map((entry) => {
+      const universeId = Number(entry.id);
+      return normalizeHomeFavoriteGame(
+        entry,
+        gameByUniverseId.get(universeId),
+        votesByUniverseId.get(universeId),
+        iconByUniverseId.get(universeId),
+      );
+    })
+    .filter(Boolean)
+    .map((game) => ({
+      ...game,
+      imageUrl: normalizeProfileImageUrl(game.imageUrl),
+    }));
+}
+
+function hasNextPageCursor(payload) {
+  return (
+    typeof payload?.nextPageCursor === "string" &&
+    payload.nextPageCursor.length > 0
+  );
+}
+
+async function fetchProfileFriends(userId) {
+  const payload = await fetchJsonWithRetry(
+    `https://friends.roblox.com/v1/users/${userId}/friends`,
+    {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    },
+  );
+
+  if (!Array.isArray(payload?.data)) {
+    throw new ApiError(
+      "INVALID_FRIENDS_RESPONSE",
+      "Roblox devolvió una lista de amigos inválida.",
+    );
+  }
+
+  const sourceByUserId = new Map();
+
+  payload.data.slice(0, 200).forEach((friend) => {
+    const id = Number(friend?.id);
+
+    if (Number.isSafeInteger(id) && id > 0 && !sourceByUserId.has(id)) {
+      sourceByUserId.set(id, friend);
+    }
+  });
+
+  const userIds = [...sourceByUserId.keys()];
+
+  if (!userIds.length) {
+    return { count: 0, friends: [] };
+  }
+
+  const [profiles, presences, thumbnails, customNames] = await Promise.all([
+    fetchFriendProfiles(userIds),
+    fetchFriendPresences(userIds).catch(() => []),
+    fetchFriendThumbnails(userIds).catch(() => []),
+    fetchFriendCustomNames(userIds).catch(() => []),
+  ]);
+  const profileByUserId = new Map(
+    profiles.map((profile) => [Number(profile?.id), profile]),
+  );
+  const presenceByUserId = new Map(
+    presences.map((presence) => [Number(presence?.userId), presence]),
+  );
+  const thumbnailByUserId = new Map(
+    thumbnails.map((thumbnail) => [Number(thumbnail?.targetId), thumbnail]),
+  );
+  const customNameByUserId = new Map(
+    customNames.map((entry) => [
+      Number(entry?.targetUserId),
+      entry?.targetUserTag,
+    ]),
+  );
+  const friends = userIds
+    .map((friendId) =>
+      normalizeHomeFriend(
+        profileByUserId.get(friendId) || sourceByUserId.get(friendId),
+        presenceByUserId.get(friendId),
+        thumbnailByUserId.get(friendId),
+        customNameByUserId.get(friendId),
+      ),
+    )
+    .filter(Boolean)
+    .map((friend) => ({
+      ...friend,
+      avatarUrl: normalizeProfileImageUrl(friend.avatarUrl),
+    }))
+    .sort(compareHomeFriends);
+
+  return { count: friends.length, friends };
+}
+
+async function fetchProfileCommunities(userId) {
+  const url = new URL(
+    `https://groups.roblox.com/v1/users/${userId}/groups/roles`,
+  );
+  url.searchParams.set("includeLocked", "true");
+  const [payload, primaryMembership] = await Promise.all([
+    fetchJsonWithRetry(url.href, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    }),
+    fetchJsonWithRetry(
+      `https://groups.roblox.com/v1/users/${userId}/groups/primary/role`,
+      {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      },
+    ).catch(() => null),
+  ]);
+
+  if (!Array.isArray(payload?.data)) {
+    throw new ApiError(
+      "INVALID_COMMUNITIES_RESPONSE",
+      "Roblox devolvió una lista de comunidades inválida.",
+    );
+  }
+
+  const seenGroupIds = new Set();
+  const primaryGroupId = Number(primaryMembership?.group?.id);
+  const communities = payload.data
+    .map((membership) => {
+      const group = membership?.group;
+      const id = Number(group?.id);
+      const name = normalizeHomeText(group?.name, 100);
+      const memberCount = Number(group?.memberCount);
+      const role = normalizeHomeText(membership?.role?.name, 100);
+
+      if (
+        !Number.isSafeInteger(id) ||
+        id <= 0 ||
+        !name ||
+        !role ||
+        !Number.isSafeInteger(memberCount) ||
+        memberCount < 0 ||
+        seenGroupIds.has(id)
+      ) {
+        return null;
+      }
+
+      seenGroupIds.add(id);
+      return {
+        hasVerifiedBadge: group?.hasVerifiedBadge === true,
+        id,
+        isPrimaryGroup:
+          membership?.isPrimaryGroup === true || primaryGroupId === id,
+        memberCount,
+        name,
+        role,
+        roleName: role,
+      };
+    })
+    .filter(Boolean);
+  const thumbnails = communities.length
+    ? await fetchProfileGroupIcons(
+        communities.map((community) => community.id),
+      ).catch(() => [])
+    : [];
+  const thumbnailByGroupId = new Map(
+    thumbnails.map((thumbnail) => [
+      Number(thumbnail?.targetId),
+      normalizeProfileImageUrl(thumbnail?.imageUrl),
+    ]),
+  );
+
+  return {
+    communities: communities.map((community) => ({
+      ...community,
+      imageUrl: thumbnailByGroupId.get(community.id) || null,
+    })),
+  };
+}
+
+async function fetchProfileGroupIcons(groupIds) {
+  const responses = await Promise.all(
+    chunkValues(groupIds, 50).map((batch) => {
+      const url = new URL("https://thumbnails.roblox.com/v1/groups/icons");
+      url.searchParams.set("groupIds", batch.join(","));
+      url.searchParams.set("size", "150x150");
+      url.searchParams.set("format", "Webp");
+      url.searchParams.set("isCircular", "false");
+      return fetchJsonWithRetry(url.href, {
+        headers: { Accept: "application/json" },
+      });
+    }),
+  );
+
+  return responses.flatMap((response) =>
+    Array.isArray(response?.data) ? response.data : [],
+  );
+}
+
+async function fetchProfileBadges(userId) {
+  const badges = [];
+  const badgeIds = new Set();
+  const requestedCursors = new Set();
+  let cursor = null;
+  let truncated = false;
+
+  for (let page = 0; page < 1; page += 1) {
+    const cursorKey = cursor || "__first_page__";
+
+    if (requestedCursors.has(cursorKey)) {
+      truncated = true;
+      break;
+    }
+
+    requestedCursors.add(cursorKey);
+    const url = new URL(
+      `https://badges.roblox.com/v1/users/${userId}/badges`,
+    );
+    url.searchParams.set("limit", "25");
+    url.searchParams.set("sortOrder", "Desc");
+
+    if (cursor) {
+      url.searchParams.set("cursor", cursor);
+    }
+
+    const payload = await fetchJsonWithRetry(url.href, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+
+    if (!Array.isArray(payload?.data)) {
+      throw new ApiError(
+        "INVALID_BADGES_RESPONSE",
+        "Roblox devolvió una lista de insignias inválida.",
+      );
+    }
+
+    for (const badge of payload.data) {
+      const normalized = normalizeProfileBadge(badge);
+
+      if (!normalized || badgeIds.has(normalized.id)) {
+        continue;
+      }
+
+      if (badges.length >= PROFILE_BADGE_LIMIT) {
+        truncated = true;
+      } else {
+        badgeIds.add(normalized.id);
+        badges.push(normalized);
+      }
+    }
+
+    const nextCursor = payload?.nextPageCursor;
+
+    if (nextCursor === null || nextCursor === undefined || nextCursor === "") {
+      cursor = null;
+      break;
+    }
+
+    if (typeof nextCursor !== "string" || nextCursor.length > 2000) {
+      truncated = true;
+      break;
+    }
+
+    cursor = nextCursor;
+
+    if (page === 0 || requestedCursors.has(cursor)) {
+      truncated = true;
+      break;
+    }
+  }
+
+  const thumbnails = badges.length
+    ? await fetchProfileBadgeIcons(badges.map((badge) => badge.id))
+    : [];
+  const thumbnailByBadgeId = new Map(
+    thumbnails.map((thumbnail) => [
+      Number(thumbnail?.targetId),
+      normalizeProfileImageUrl(thumbnail?.imageUrl),
+    ]),
+  );
+
+  return {
+    badges: badges.map((badge) => ({
+      ...badge,
+      imageUrl: thumbnailByBadgeId.get(badge.id) || null,
+    })),
+    truncated,
+  };
+}
+
+function normalizeProfileBadge(badge) {
+  const id = Number(badge?.id);
+  const name = normalizeHomeText(badge?.name || badge?.displayName, 100);
+
+  if (!Number.isSafeInteger(id) || id <= 0 || !name) {
+    return null;
+  }
+
+  const created = normalizeHomeText(badge?.created, 50);
+  const updated = normalizeHomeText(badge?.updated, 50);
+
+  return {
+    created: Number.isFinite(Date.parse(created)) ? created : null,
+    description: normalizeHomeText(
+      badge?.description || badge?.displayDescription,
+      1000,
+    ),
+    id,
+    name,
+    updated: Number.isFinite(Date.parse(updated)) ? updated : null,
+  };
+}
+
+async function fetchProfileBadgeIcons(badgeIds) {
+  const responses = await Promise.all(
+    chunkValues(badgeIds, 50).map(async (batch) => {
+      const url = new URL("https://thumbnails.roblox.com/v1/badges/icons");
+      url.searchParams.set("badgeIds", batch.join(","));
+      url.searchParams.set("size", "150x150");
+      url.searchParams.set("format", "Webp");
+      url.searchParams.set("isCircular", "false");
+
+      try {
+        return await fetchJsonWithRetry(url.href, {
+          headers: { Accept: "application/json" },
+        });
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return responses.flatMap((response) =>
+    Array.isArray(response?.data) ? response.data : [],
+  );
+}
+
+function normalizeProfileImageUrl(value) {
+  if (typeof value !== "string" || value.length > 2000) {
+    return null;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function mutateProfileRelationship(userId, action, sender) {
+  const pageUserId = getProfileUserIdFromSender(sender);
+
+  if (pageUserId !== userId) {
+    throw new ApiError(
+      "PROFILE_PAGE_MISMATCH",
+      "La acción no coincide con el perfil de Roblox abierto.",
+    );
+  }
+
+  const authenticatedUserId = await fetchAuthenticatedUserId();
+
+  if (authenticatedUserId === userId) {
+    throw new ApiError(
+      "SELF_RELATIONSHIP_NOT_ALLOWED",
+      "No puedes realizar esta acción sobre tu propio perfil.",
+    );
+  }
+
+  let csrfRefreshes = 0;
+  let revalidateViewer = false;
+  let transientAttempts = 0;
+
+  while (transientAttempts <= SERVER_BROWSER_CONFIG.maxRetries) {
+    if (revalidateViewer) {
+      const currentUserId = await fetchAuthenticatedUserId();
+
+      if (currentUserId !== authenticatedUserId) {
+        throw new ApiError(
+          "AUTHENTICATED_USER_CHANGED",
+          "La cuenta autenticada de Roblox cambió durante la solicitud.",
+        );
+      }
+    }
+
+    const headers = { Accept: "application/json" };
+
+    if (profileMutationCsrfToken) {
+      headers["X-CSRF-TOKEN"] = profileMutationCsrfToken;
+    }
+
+    let response;
+
+    try {
+      response = await fetch(
+        `https://friends.roblox.com/v1/users/${userId}/${action}`,
+        { credentials: "include", headers, method: "POST" },
+      );
+    } catch (error) {
+      if (transientAttempts === SERVER_BROWSER_CONFIG.maxRetries) {
+        throw new ApiError(
+          "NETWORK_ERROR",
+          "No se pudo conectar con la API social de Roblox.",
+          { cause: error?.message ?? "" },
+        );
+      }
+
+      await delay(getBackoffDelay(transientAttempts));
+      revalidateViewer = true;
+      transientAttempts += 1;
+      continue;
+    }
+
+    if (response.status === 403) {
+      const nextToken = response.headers.get("x-csrf-token");
+
+      if (
+        nextToken &&
+        nextToken !== profileMutationCsrfToken &&
+        csrfRefreshes < 2
+      ) {
+        profileMutationCsrfToken = nextToken;
+        csrfRefreshes += 1;
+        revalidateViewer = true;
+        continue;
+      }
+    }
+
+    if (response.ok) {
+      const text = await response.text();
+
+      if (text) {
+        let payload;
+
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          throw new ApiError(
+            "INVALID_JSON",
+            "Roblox devolvió una respuesta social inválida.",
+          );
+        }
+
+        if (payload?.success === false) {
+          throw new ApiError(
+            payload?.isCaptchaRequired === true
+              ? "CAPTCHA_REQUIRED"
+              : "PROFILE_ACTION_FAILED",
+            payload?.isCaptchaRequired === true
+              ? "Roblox requiere completar una verificación antes de esta acción."
+              : "Roblox no pudo completar esta acción social.",
+          );
+        }
+      }
+
+      return { success: true };
+    }
+
+    if (
+      (response.status === 429 || response.status >= 500) &&
+      transientAttempts < SERVER_BROWSER_CONFIG.maxRetries
+    ) {
+      await delay(getRetryDelay(response, transientAttempts));
+      revalidateViewer = true;
+      transientAttempts += 1;
+      continue;
+    }
+
+    if (response.status === 401) {
+      throw new ApiError(
+        "AUTH_REQUIRED",
+        "Inicia sesión nuevamente en Roblox para realizar esta acción.",
+        { httpStatus: response.status },
+      );
+    }
+
+    throw new ApiError(
+      response.status === 403
+        ? "PROFILE_ACTION_FORBIDDEN"
+        : response.status === 429
+          ? "RATE_LIMITED"
+          : response.status >= 500
+            ? "ROBLOX_UNAVAILABLE"
+            : "PROFILE_ACTION_FAILED",
+      response.status === 403
+        ? "Roblox rechazó la autorización para esta acción."
+        : `No se pudo completar la acción (HTTP ${response.status}).`,
+      { httpStatus: response.status },
+    );
+  }
+}
+
+function getProfileUserIdFromSender(sender) {
+  let url;
+
+  try {
+    url = new URL(sender?.url || sender?.tab?.url || "");
+  } catch {
+    url = null;
+  }
+
+  const match =
+    url?.protocol === "https:" &&
+    url.hostname.toLowerCase() === "www.roblox.com"
+      ? url.pathname.match(
+          /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?users\/(\d+)\/profile\/?$/i,
+        )
+      : null;
+  const userId = Number(match?.[1]);
+
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    throw new ApiError(
+      "INVALID_PROFILE_PAGE",
+      "La acción debe iniciarse desde un perfil válido de Roblox.",
+    );
+  }
+
+  return userId;
 }
 
 function compareHomeFriends(left, right) {

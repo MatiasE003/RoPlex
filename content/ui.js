@@ -39,3 +39,36 @@ export function setAvatarContent(container, avatarUrl, initial) {
   });
   container.replaceChildren(image);
 }
+
+export function handleHorizontalCarouselWheel(event, target = event.currentTarget) {
+  if (event.ctrlKey) {
+    return;
+  }
+
+  const carousel = target;
+  const rawDelta =
+    Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+      ? event.deltaY
+      : event.deltaX;
+  const multiplier =
+    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? 32
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? carousel.clientWidth
+        : 1;
+  const delta = rawDelta * multiplier;
+  const maximumScroll = carousel.scrollWidth - carousel.clientWidth;
+  const canMove =
+    (delta > 0 && carousel.scrollLeft < maximumScroll - 1) ||
+    (delta < 0 && carousel.scrollLeft > 1);
+
+  if (!delta) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (canMove) {
+    carousel.scrollLeft += delta;
+  }
+}

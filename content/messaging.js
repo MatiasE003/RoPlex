@@ -11,12 +11,13 @@ export function sendMessage(message) {
       }
 
       if (!response?.ok) {
-        reject(
-          new Error(
-            response?.error?.message ||
-              "The extension did not return a valid response.",
-          ),
+        const error = new Error(
+          response?.error?.message ||
+            "The extension did not return a valid response.",
         );
+        error.code = response?.error?.code;
+        error.details = response?.error?.details;
+        reject(error);
         return;
       }
 

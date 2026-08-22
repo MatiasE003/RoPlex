@@ -6,12 +6,22 @@ export const MESSAGE_TYPES = {
   friends: "GET_HOME_FRIENDS",
   recommended: "GET_HOME_RECOMMENDED",
   userSearch: "SEARCH_HOME_USERS",
+  profileAvatar: "GET_PROFILE_AVATAR",
+  profileBadges: "GET_PROFILE_BADGES",
+  profileBootstrap: "GET_PROFILE_BOOTSTRAP",
+  profileCommunities: "GET_PROFILE_COMMUNITIES",
+  profileCreations: "GET_PROFILE_CREATIONS",
+  profileFavorites: "GET_PROFILE_FAVORITES",
+  profileFriends: "GET_PROFILE_FRIENDS",
+  profileFriendRequest: "REQUEST_PROFILE_FRIEND",
+  profileFollow: "FOLLOW_PROFILE_USER",
 };
 
 export const EVENTS = {
   componentConnected: "roblox-extension:component-connected",
   componentDisconnected: "roblox-extension:component-disconnected",
   homeRefresh: "roblox-extension:home-refresh",
+  profileRefresh: "roblox-extension:profile-refresh",
   joinRequest: "roblox-extension:join-server",
   joinResult: "roblox-extension:join-server-result",
   routeChange: "roblox-extension:route-change",
