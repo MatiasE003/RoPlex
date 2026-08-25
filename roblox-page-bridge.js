@@ -4,6 +4,7 @@
   const ROUTE_CHANGE_EVENT = "roblox-extension:route-change";
   const COMPONENT_CONNECTED_EVENT = "roblox-extension:component-connected";
   const COMPONENT_DISCONNECTED_EVENT = "roblox-extension:component-disconnected";
+  const ACCOUNT_SWITCH_REQUEST_EVENT = "roblox-extension:account-switch-request";
   const EXTENSION_COMPONENTS = [
     "rx-home-search",
     "rx-friends-list",
@@ -51,6 +52,36 @@
         ok: false,
       });
     }
+  });
+
+  document.addEventListener(ACCOUNT_SWITCH_REQUEST_EVENT, async () => {
+    const nativeMenuItem = document.querySelector(".account-switch-menu-item");
+
+    if (nativeMenuItem instanceof HTMLElement) {
+      nativeMenuItem.click();
+      return;
+    }
+
+    const accountSwitcher = window.Roblox?.AccountSwitcherService;
+
+    if (
+      typeof accountSwitcher?.isAccountSwitcherAvailable !== "function" ||
+      typeof accountSwitcher.renderAccountSwitcher !== "function" ||
+      !(await accountSwitcher.isAccountSwitcherAvailable())
+    ) {
+      return;
+    }
+
+    // This is Roblox's own UI and preserves the browser's linked accounts.
+    accountSwitcher.renderAccountSwitcher({
+      containerId: "navigation-account-switcher-container",
+      handleAddAccount: () => {
+        location.assign("/newlogin?ReturnUrl=%2Fhome");
+      },
+      onAccountSwitched: () => {
+        location.assign("/home");
+      },
+    });
   });
 
   function waitForGameLauncher() {

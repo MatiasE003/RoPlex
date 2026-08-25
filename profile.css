@@ -429,6 +429,28 @@
   gap: 20px;
 }
 
+#roblox-extension-profile .rx-profile-flow > [data-profile-section] {
+  scroll-margin-top: 76px;
+}
+
+#roblox-extension-profile
+  .rx-profile-flow
+  > [data-profile-load-state="idle"],
+#roblox-extension-profile
+  .rx-profile-flow
+  > [data-profile-load-state="loading"] {
+  min-height: 220px;
+}
+
+#roblox-extension-profile
+  .rx-profile-flow
+  > [data-profile-section="avatar"][data-profile-load-state="idle"],
+#roblox-extension-profile
+  .rx-profile-flow
+  > [data-profile-section="avatar"][data-profile-load-state="loading"] {
+  min-height: 520px;
+}
+
 #roblox-extension-profile .rx-profile-panel-content {
   padding: 20px;
 }

@@ -116,7 +116,6 @@ export function renderProfileBootstrap(container, data, options) {
   card.append(cover, identity, createProfileStats(profile, data), actionStatus);
 
   const account = createPanel("Public Account Info", "rx-profile-account");
-  account.section.id = "profile-account";
   const details = element("div", "rx-profile-details");
   details.append(
     detail("Joined", joined || "Unavailable"),
@@ -195,82 +194,37 @@ export function renderProfileFavorites(container, data) {
   });
 }
 
-export function renderProfileFriends(container, data) {
+export async function renderProfileFriends(container, data, _userId, options) {
   const friends = arrayFrom(data, "friends", "users", "items");
   const panel = createPanel("Friends", "rx-profile-friends", friends.length);
   if (!friends.length) {
     panel.body.append(emptyState("This user has no public friends."));
   } else {
     const grid = element("div", "rx-profile-friend-grid");
-    friends.forEach((friend) => {
-      const userId = positiveId(friend?.id || friend?.userId);
-      const displayName = text(friend?.displayName) || text(friend?.username) || "Roblox user";
-      const customName = text(friend?.customName);
-      const username = text(friend?.username || friend?.name);
-      const link = element("a", "rx-profile-friend-card");
-      const avatar = element("span", "rx-profile-friend-avatar");
-      if (userId) {
-        link.href = `/users/${userId}/profile`;
-      }
-      setAvatarContent(
-        avatar,
-        friend?.avatarUrl || friend?.headshotUrl,
-        Array.from(customName || displayName)[0]?.toUpperCase() || "?",
-      );
-      const copy = element("span", "rx-profile-card-copy");
-      copy.append(
-        element("strong", "", customName || displayName),
-        element(
-          "small",
-          "",
-          customName
-            ? `${displayName}${username ? ` · @${username}` : ""}`
-            : username
-              ? `@${username}`
-              : "Roblox user",
-        ),
-      );
-      link.append(avatar, copy);
-      grid.append(link);
-    });
     panel.body.append(grid);
+    container.replaceChildren(panel.section);
+    await appendInBatches(grid, friends, createFriendCard, options?.isCurrent);
+    return;
   }
   container.replaceChildren(panel.section);
 }
 
-export function renderProfileCommunities(container, data) {
+export async function renderProfileCommunities(container, data, _userId, options) {
   const communities = arrayFrom(data, "communities", "groups", "items");
   const panel = createPanel("Communities", "rx-profile-communities", communities.length);
   if (!communities.length) {
     panel.body.append(emptyState("This user has no public communities."));
   } else {
     const grid = element("div", "rx-profile-community-grid");
-    communities.forEach((community) => {
-      const group = community?.group || community;
-      const groupId = positiveId(group?.id || community?.groupId);
-      const name = text(group?.name) || "Roblox community";
-      const link = element("a", "rx-profile-community-card");
-      const visual = element("span", "rx-profile-community-image");
-      const image = safeImage(group?.imageUrl || group?.thumbnailUrl, name);
-      link.href = groupId ? `/communities/${groupId}` : "/communities";
-      visual.append(image || document.createTextNode(initials(name)));
-      const copy = element("span", "rx-profile-card-copy");
-      const memberCount = nonNegativeNumber(group?.memberCount || community?.memberCount);
-      const role = text(community?.role?.name || community?.roleName) || "Member";
-      copy.append(
-        element("strong", "", name),
-        element(
-          "small",
-          "",
-          memberCount === null
-            ? role
-            : `${role} · ${formatCompactNumber(memberCount)} members`,
-        ),
-      );
-      link.append(visual, copy);
-      grid.append(link);
-    });
     panel.body.append(grid);
+    container.replaceChildren(panel.section);
+    await appendInBatches(
+      grid,
+      communities,
+      createCommunityCard,
+      options?.isCurrent,
+    );
+    return;
   }
   container.replaceChildren(panel.section);
 }
@@ -396,6 +350,93 @@ function createAssetCard(asset, userId) {
   return card;
 }
 
+function createFriendCard(friend) {
+  const userId = positiveId(friend?.id || friend?.userId);
+  const displayName =
+    text(friend?.displayName) || text(friend?.username) || "Roblox user";
+  const customName = text(friend?.customName);
+  const username = text(friend?.username || friend?.name);
+  const link = element("a", "rx-profile-friend-card");
+  const avatar = element("span", "rx-profile-friend-avatar");
+  if (userId) {
+    link.href = `/users/${userId}/profile`;
+  }
+  setAvatarContent(
+    avatar,
+    friend?.avatarUrl || friend?.headshotUrl,
+    Array.from(customName || displayName)[0]?.toUpperCase() || "?",
+    { decoding: "async", loading: "lazy" },
+  );
+  const copy = element("span", "rx-profile-card-copy");
+  copy.append(
+    element("strong", "", customName || displayName),
+    element(
+      "small",
+      "",
+      customName
+        ? `${displayName}${username ? ` · @${username}` : ""}`
+        : username
+          ? `@${username}`
+          : "Roblox user",
+    ),
+  );
+  link.append(avatar, copy);
+  return link;
+}
+
+function createCommunityCard(community) {
+  const group = community?.group || community;
+  const groupId = positiveId(group?.id || community?.groupId);
+  const name = text(group?.name) || "Roblox community";
+  const link = element("a", "rx-profile-community-card");
+  const visual = element("span", "rx-profile-community-image");
+  const image = safeImage(group?.imageUrl || group?.thumbnailUrl, name);
+  link.href = groupId ? `/communities/${groupId}` : "/communities";
+  visual.append(image || document.createTextNode(initials(name)));
+  const copy = element("span", "rx-profile-card-copy");
+  const memberCount = nonNegativeNumber(
+    group?.memberCount || community?.memberCount,
+  );
+  const role = text(community?.role?.name || community?.roleName) || "Member";
+  copy.append(
+    element("strong", "", name),
+    element(
+      "small",
+      "",
+      memberCount === null
+        ? role
+        : `${role} · ${formatCompactNumber(memberCount)} members`,
+    ),
+  );
+  link.append(visual, copy);
+  return link;
+}
+
+async function appendInBatches(container, items, createItem, isCurrent) {
+  const batchSize = 24;
+
+  for (let index = 0; index < items.length; index += batchSize) {
+    if (typeof isCurrent === "function" && !isCurrent()) return;
+    if (index) await waitForRenderOpportunity();
+    if (typeof isCurrent === "function" && !isCurrent()) return;
+    const fragment = document.createDocumentFragment();
+    items
+      .slice(index, index + batchSize)
+      .forEach((item) => fragment.append(createItem(item)));
+    container.append(fragment);
+  }
+}
+
+function waitForRenderOpportunity() {
+  return new Promise((resolve) => {
+    if (typeof requestIdleCallback === "function") {
+      requestIdleCallback(resolve, { timeout: 100 });
+    } else {
+      requestAnimationFrame(resolve);
+    }
+  });
+}
+
 function createProfileStats(profile, data) {
   const stats = element("div", "rx-profile-stats");
   const values = [
@@ -508,6 +549,7 @@ function safeImage(url, alt) {
   if (typeof url !== "string" || !url.startsWith("https://")) return null;
   const image = document.createElement("img");
   image.alt = alt;
+  image.decoding = "async";
   image.loading = "lazy";
   image.referrerPolicy = "no-referrer";
   image.src = url;

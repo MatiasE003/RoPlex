@@ -1,0 +1,30 @@
+html.roblox-extension-home-active,
+html.roblox-extension-home-active body,
+html.roblox-extension-profile-active,
+html.roblox-extension-profile-active body {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #101318 !important;
+}
+
+html.roblox-extension-home-active
+  body
+  > :not(#roblox-extension-home):not(#chat-container) {
+  display: none !important;
+}
+
+html.roblox-extension-profile-active
+  body
+  > :not(#roblox-extension-profile):not(#roblox-extension-profile-mode-toggle):not(#chat-container) {
+  display: none !important;
+}
+
+/* The extension does not surface native chat system feedback. */
+html.roblox-extension-home-active #chat-container .sg-system-feedback,
+html.roblox-extension-home-active #chat-container #chat-system-feedback,
+html.roblox-extension-profile-active #chat-container .sg-system-feedback,
+html.roblox-extension-profile-active #chat-container #chat-system-feedback {
+  display: none !important;
+}

@@ -40,51 +40,80 @@ const profileMarkup = createAppShellMarkup({
 
 const sectionLoaders = {
   avatar: {
+    idle: "Avatar loads as it approaches the viewport.",
     loading: "Loading current avatar...",
     messageType: MESSAGE_TYPES.profileAvatar,
     render: renderProfileAvatar,
   },
-  badges: {
-    loading: "Loading badges...",
-    messageType: MESSAGE_TYPES.profileBadges,
-    render: renderProfileBadges,
-  },
-  communities: {
-    loading: "Loading communities...",
-    messageType: MESSAGE_TYPES.profileCommunities,
-    render: renderProfileCommunities,
-  },
   creations: {
+    idle: "Creations load as they approach the viewport.",
     loading: "Loading creations...",
     messageType: MESSAGE_TYPES.profileCreations,
     render: renderProfileCreations,
   },
   favorites: {
+    idle: "Favorites load as they approach the viewport.",
     loading: "Loading favorites...",
     messageType: MESSAGE_TYPES.profileFavorites,
     render: renderProfileFavorites,
   },
   friends: {
+    idle: "Friends load as they approach the viewport.",
     loading: "Loading friends...",
     messageType: MESSAGE_TYPES.profileFriends,
     render: renderProfileFriends,
   },
+  communities: {
+    idle: "Communities load as they approach the viewport.",
+    loading: "Loading communities...",
+    messageType: MESSAGE_TYPES.profileCommunities,
+    render: renderProfileCommunities,
+  },
+  badges: {
+    idle: "Badges load as they approach the viewport.",
+    loading: "Loading badges...",
+    messageType: MESSAGE_TYPES.profileBadges,
+    render: renderProfileBadges,
+  },
 };
+
+const sectionByHash = new Map([
+  ["#profile-account", "account"],
+  ["#profile-avatar", "avatar"],
+  ["#profile-creations", "creations"],
+  ["#profile-favorites", "favorites"],
+  ["#profile-friends", "friends"],
+  ["#profile-communities", "communities"],
+  ["#profile-badges", "badges"],
+]);
 
 export class ProfileApp extends HTMLElement {
   connectedCallback() {
     if (!this.childElementCount) {
       this.innerHTML = profileMarkup;
       this.handleRouteChange = () => this.syncRoute();
+      this.handleHashChange = () => this.loadHashSection();
+      this.handleTabClick = (event) => {
+        const link = event.target.closest("a[href^='#profile-']");
+
+        if (link && this.contains(link)) {
+          this.loadHashSection(link.hash);
+        }
+      };
     }
 
     document.addEventListener(EVENTS.routeChange, this.handleRouteChange);
+    window.addEventListener("hashchange", this.handleHashChange);
+    this.addEventListener("click", this.handleTabClick);
     this.syncRoute();
   }
 
   disconnectedCallback() {
     this.requestGeneration = (this.requestGeneration || 0) + 1;
+    this.disconnectSectionObserver();
     document.removeEventListener(EVENTS.routeChange, this.handleRouteChange);
+    window.removeEventListener("hashchange", this.handleHashChange);
+    this.removeEventListener("click", this.handleTabClick);
     document.documentElement.classList.remove("roblox-extension-profile-active");
   }
 
@@ -93,6 +122,7 @@ export class ProfileApp extends HTMLElement {
 
     if (!route) {
       this.requestGeneration = (this.requestGeneration || 0) + 1;
+      this.disconnectSectionObserver();
       this.activeUserId = null;
       this.hidden = true;
       document.documentElement.classList.remove("roblox-extension-profile-active");
@@ -111,6 +141,8 @@ export class ProfileApp extends HTMLElement {
   loadProfile(userId) {
     const generation = (this.requestGeneration || 0) + 1;
     this.requestGeneration = generation;
+    this.disconnectSectionObserver();
+    this.sectionStates = new Map();
     renderShellSignedOut(this);
     this.dispatchEvent(
       new CustomEvent(EVENTS.profileRefresh, {
@@ -119,9 +151,9 @@ export class ProfileApp extends HTMLElement {
       }),
     );
     this.loadBootstrap(userId, generation);
-    Object.keys(sectionLoaders).forEach((section) =>
-      this.loadSection(section, userId, generation),
-    );
+    this.observeSections(userId, generation);
+    this.loadSection("avatar", userId, generation);
+    this.loadHashSection();
   }
 
   async loadBootstrap(userId, generation) {
@@ -160,23 +192,99 @@ export class ProfileApp extends HTMLElement {
     }
   }
 
-  async loadSection(section, userId, generation) {
+  loadSection(section, userId, generation) {
+    const existing = this.sectionStates?.get(section);
+
+    if (existing?.status === "loading" || existing?.status === "loaded") {
+      return existing.promise;
+    }
+
+    this.sectionObserver?.unobserve(this.section(section));
+    const promise = this.performSectionLoad(section, userId, generation);
+    this.sectionStates?.set(section, { promise, status: "loading" });
+    return promise;
+  }
+
+  async performSectionLoad(section, userId, generation) {
     const config = sectionLoaders[section];
     const container = this.section(section);
+    container.dataset.profileLoadState = "loading";
     renderProfileSectionState(container, config.loading);
 
     try {
       const data = await sendMessage({ type: config.messageType, userId });
       if (!this.isCurrent(userId, generation)) return;
-      config.render(container, data, userId);
+      await config.render(container, data, userId, {
+        isCurrent: () => this.isCurrent(userId, generation),
+      });
+      if (!this.isCurrent(userId, generation)) return;
+      container.dataset.profileLoadState = "loaded";
+      this.sectionStates?.set(section, {
+        promise: Promise.resolve(),
+        status: "loaded",
+      });
+
+      if (sectionByHash.get(location.hash) === section) {
+        container.scrollIntoView({ block: "start" });
+      }
     } catch (error) {
       if (!this.isCurrent(userId, generation)) return;
+      container.dataset.profileLoadState = "error";
+      this.sectionStates?.set(section, { promise: null, status: "error" });
       renderProfileSectionState(
         container,
         error?.message || `The ${section} section could not be loaded.`,
         () => this.loadSection(section, userId, generation),
       );
     }
+  }
+
+  observeSections(userId, generation) {
+    for (const [section, config] of Object.entries(sectionLoaders)) {
+      const container = this.section(section);
+      container.dataset.profileLoadState = "idle";
+      renderProfileSectionState(container, config.idle);
+      this.sectionStates.set(section, { promise: null, status: "idle" });
+    }
+
+    if (typeof IntersectionObserver !== "function") {
+      Object.keys(sectionLoaders).forEach((section) =>
+        this.loadSection(section, userId, generation),
+      );
+      return;
+    }
+
+    this.sectionObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const section = entry.target.dataset.profileSection;
+          if (sectionLoaders[section]) {
+            this.loadSection(section, userId, generation);
+          }
+        });
+      },
+      { rootMargin: "360px 0px" },
+    );
+
+    Object.keys(sectionLoaders).forEach((section) =>
+      this.sectionObserver.observe(this.section(section)),
+    );
+  }
+
+  loadHashSection(hash = location.hash) {
+    const section = sectionByHash.get(hash);
+
+    if (!section || !this.activeUserId || !this.sectionStates) return;
+    const container = this.section(section);
+    container.scrollIntoView({ block: "start" });
+    if (!sectionLoaders[section]) return;
+    this.loadSection(section, this.activeUserId, this.requestGeneration);
+  }
+
+  disconnectSectionObserver() {
+    this.sectionObserver?.disconnect();
+    this.sectionObserver = null;
   }
 
   isCurrent(userId, generation) {

@@ -39,7 +39,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.roblox.com/*"],
-      "css": ["content.css", "profile.css"],
+      "css": ["content-activation.css"],
       "js": ["content.js"],
       "run_at": "document_start"
     },
@@ -70,7 +70,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["content/*.js"],
+      "resources": ["content/*.js", "content.css", "profile.css"],
       "matches": ["https://www.roblox.com/*"]
     }
   ]

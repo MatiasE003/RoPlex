@@ -23,7 +23,7 @@ export function formatCompactNumber(value) {
   }).format(value);
 }
 
-export function setAvatarContent(container, avatarUrl, initial) {
+export function setAvatarContent(container, avatarUrl, initial, options = {}) {
   container.textContent = initial;
 
   if (typeof avatarUrl !== "string" || !avatarUrl.startsWith("https://")) {
@@ -32,6 +32,8 @@ export function setAvatarContent(container, avatarUrl, initial) {
 
   const image = document.createElement("img");
   image.alt = "";
+  if (options.decoding) image.decoding = options.decoding;
+  if (options.loading) image.loading = options.loading;
   image.referrerPolicy = "no-referrer";
   image.src = avatarUrl;
   image.addEventListener("error", () => container.replaceChildren(initial), {

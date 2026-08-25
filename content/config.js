@@ -20,6 +20,7 @@ export const MESSAGE_TYPES = {
 export const EVENTS = {
   componentConnected: "roblox-extension:component-connected",
   componentDisconnected: "roblox-extension:component-disconnected",
+  accountSwitchRequest: "roblox-extension:account-switch-request",
   homeRefresh: "roblox-extension:home-refresh",
   profileRefresh: "roblox-extension:profile-refresh",
   joinRequest: "roblox-extension:join-server",

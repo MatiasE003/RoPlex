@@ -25,6 +25,20 @@ const GEOLOCATION_CACHE_VERSION = 1;
 const HOME_DISCOVERY_CACHE_TTL_MS = 30 * 1000;
 const HOME_FRIEND_PREVIEW_CACHE_TTL_MS = 5 * 60 * 1000;
 const PROFILE_BADGE_LIMIT = 16;
+const PROFILE_GAME_ENRICHMENT_CACHE_LIMIT = 512;
+const PROFILE_GAME_ENRICHMENT_CACHE_TTL_MS = 60 * 1000;
+const PROFILE_READ_CACHE_LIMIT = 96;
+const PROFILE_READ_CACHE_TTL_MS = Object.freeze({
+  avatar: 60 * 1000,
+  badges: 60 * 1000,
+  bootstrap: 15 * 1000,
+  communities: 60 * 1000,
+  creations: 60 * 1000,
+  favorites: 60 * 1000,
+  friends: 20 * 1000,
+});
+const PROFILE_RESOURCE_CACHE_LIMIT = 96;
+const PROFILE_RESOURCE_CACHE_TTL_MS = 60 * 1000;
 let lastCacheCleanupAt = 0;
 let currentRegionChecksPerSecond =
   SERVER_BROWSER_CONFIG.initialRegionChecksPerSecond;
@@ -44,6 +58,15 @@ let homeDiscoveryRequest = null;
 let badgeCsrfToken = null;
 let profileMutationCsrfToken = null;
 let profileMutationGate = Promise.resolve();
+let profileAccountEpoch = 0;
+let profileAccountKey = null;
+let profileReadRevision = 0;
+const profileReadCache = new Map();
+const profileReadRequests = new Map();
+const profileFullAvatarCache = new Map();
+const profileFullAvatarRequests = new Map();
+const profileGameEnrichmentCache = new Map();
+const profileGameEnrichmentRequests = new Map();
 
 class ApiError extends Error {
   constructor(code, message, details = {}) {
@@ -107,31 +130,59 @@ async function handleMessage(message, sender) {
   }
 
   if (message.type === "GET_PROFILE_BOOTSTRAP") {
-    return fetchProfileBootstrap(parseUserId(message.userId));
+    return fetchCachedProfileRead(
+      "bootstrap",
+      parseUserId(message.userId),
+      fetchProfileBootstrap,
+    );
   }
 
   if (message.type === "GET_PROFILE_AVATAR") {
-    return fetchProfileAvatar(parseUserId(message.userId));
+    return fetchCachedProfileRead(
+      "avatar",
+      parseUserId(message.userId),
+      fetchProfileAvatar,
+    );
   }
 
   if (message.type === "GET_PROFILE_CREATIONS") {
-    return fetchProfileCreations(parseUserId(message.userId));
+    return fetchCachedProfileRead(
+      "creations",
+      parseUserId(message.userId),
+      fetchProfileCreations,
+    );
   }
 
   if (message.type === "GET_PROFILE_FAVORITES") {
-    return fetchProfileFavorites(parseUserId(message.userId));
+    return fetchCachedProfileRead(
+      "favorites",
+      parseUserId(message.userId),
+      fetchProfileFavorites,
+    );
   }
 
   if (message.type === "GET_PROFILE_FRIENDS") {
-    return fetchProfileFriends(parseUserId(message.userId));
+    return fetchCachedProfileRead(
+      "friends",
+      parseUserId(message.userId),
+      fetchProfileFriends,
+    );
   }
 
   if (message.type === "GET_PROFILE_COMMUNITIES") {
-    return fetchProfileCommunities(parseUserId(message.userId));
+    return fetchCachedProfileRead(
+      "communities",
+      parseUserId(message.userId),
+      fetchProfileCommunities,
+    );
   }
 
   if (message.type === "GET_PROFILE_BADGES") {
-    return fetchProfileBadges(parseUserId(message.userId));
+    return fetchCachedProfileRead(
+      "badges",
+      parseUserId(message.userId),
+      fetchProfileBadges,
+    );
   }
 
   if (message.type === "REQUEST_PROFILE_FRIEND") {
@@ -1235,10 +1286,182 @@ function parseHomeSearchQuery(value) {
   return query;
 }
 
-async function fetchProfileBootstrap(userId) {
+async function fetchCachedProfileRead(kind, userId, loader, staleRetries = 0) {
+  const viewerScoped = kind === "bootstrap" || kind === "friends";
+  const mutationSensitive = kind === "bootstrap";
+  const account = viewerScoped
+    ? await resolveProfileAccountContext()
+    : { epoch: 0, key: "public", viewer: null };
+  const key = `${account.key}:${userId}:${kind}`;
+  const revision = profileReadRevision;
+  const cached = readMemoryCache(profileReadCache, key);
+
+  if (cached !== undefined) {
+    if (viewerScoped) await validateProfileAccountContext(account);
+    if (mutationSensitive && revision !== profileReadRevision) {
+      if (staleRetries < 1) {
+        return fetchCachedProfileRead(kind, userId, loader, staleRetries + 1);
+      }
+      throw new ApiError(
+        "STALE_PROFILE_READ",
+        "El perfil cambió mientras se estaba cargando.",
+      );
+    }
+    return cached;
+  }
+
+  let request = profileReadRequests.get(key);
+
+  if (!request) {
+    request = {
+      promise: (async () => {
+        const data = await loader(userId, account);
+
+        if (viewerScoped) await validateProfileAccountContext(account);
+        if (mutationSensitive && revision !== profileReadRevision) {
+          throw new ApiError(
+            "STALE_PROFILE_READ",
+            "El perfil cambió mientras se estaba cargando.",
+          );
+        }
+        writeMemoryCache(
+          profileReadCache,
+          key,
+          data,
+          PROFILE_READ_CACHE_TTL_MS[kind],
+          PROFILE_READ_CACHE_LIMIT,
+        );
+        return data;
+      })(),
+    };
+    profileReadRequests.set(key, request);
+  }
+
+  let result;
+  let requestError;
+  try {
+    result = await request.promise;
+  } catch (error) {
+    requestError = error;
+  } finally {
+    if (profileReadRequests.get(key) === request) {
+      profileReadRequests.delete(key);
+    }
+  }
+
+  if (
+    requestError instanceof ApiError &&
+    requestError.code === "STALE_PROFILE_READ" &&
+    staleRetries < 1
+  ) {
+    return fetchCachedProfileRead(kind, userId, loader, staleRetries + 1);
+  }
+  if (requestError) throw requestError;
+  return result;
+}
+
+async function resolveProfileAccountContext() {
+  const viewer = await fetchProfileAccountIdentity();
+  const key = viewer ? `user:${viewer.id}` : "anonymous";
+  updateProfileAccountScope(key);
+  return { epoch: profileAccountEpoch, key, viewer };
+}
+
+async function validateProfileAccountContext(account) {
+  const currentAccount = await resolveProfileAccountContext();
+
+  if (
+    currentAccount.key !== account.key ||
+    currentAccount.epoch !== account.epoch
+  ) {
+    throw new ApiError(
+      "AUTHENTICATED_USER_CHANGED",
+      "La cuenta autenticada de Roblox cambió durante la solicitud.",
+    );
+  }
+}
+
+async function fetchProfileAccountIdentity() {
+  try {
+    const payload = await fetchJsonWithRetry(
+      "https://users.roblox.com/v1/users/authenticated",
+      {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      },
+    );
+    const id = Number(payload?.id);
+    const username = normalizeHomeText(payload?.name, 20);
+    const displayName = normalizeHomeText(payload?.displayName, 50);
+
+    if (!Number.isSafeInteger(id) || id <= 0 || !username || !displayName) {
+      throw new ApiError(
+        "INVALID_USER_RESPONSE",
+        "Roblox devolvió datos inválidos para el usuario autenticado.",
+      );
+    }
+
+    return { displayName, id, username };
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "AUTH_REQUIRED") {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+function updateProfileAccountScope(key) {
+  if (profileAccountKey === key) return;
+  profileAccountKey = key;
+  profileAccountEpoch += 1;
+  profileReadRevision += 1;
+  profileMutationCsrfToken = null;
+  clearViewerScopedProfileEntries(profileReadCache);
+  clearViewerScopedProfileEntries(profileReadRequests);
+}
+
+function clearViewerScopedProfileEntries(entries) {
+  for (const key of entries.keys()) {
+    if (!key.startsWith("public:")) entries.delete(key);
+  }
+}
+
+function readMemoryCache(cache, key) {
+  const entry = cache.get(key);
+
+  if (!entry) return undefined;
+  if (entry.expiresAt <= Date.now()) {
+    cache.delete(key);
+    return undefined;
+  }
+
+  cache.delete(key);
+  cache.set(key, entry);
+  return entry.value;
+}
+
+function writeMemoryCache(cache, key, value, ttlMs, limit) {
+  cache.delete(key);
+  cache.set(key, { expiresAt: Date.now() + ttlMs, value });
+
+  while (cache.size > limit) {
+    cache.delete(cache.keys().next().value);
+  }
+}
+
+function invalidateProfileRead(kind, userId, viewerKey = profileAccountKey) {
+  if (!viewerKey) return;
+  const key = `${viewerKey}:${userId}:${kind}`;
+  profileReadRevision += 1;
+  profileReadCache.delete(key);
+  profileReadRequests.delete(key);
+}
+
+async function fetchProfileBootstrap(userId, account) {
   const [viewer, profile, avatarUrl, presences, friends, followers, following] =
     await Promise.all([
-      fetchOptionalProfileViewer(),
+      fetchProfileViewer(account.viewer),
       fetchProfileIdentity(userId),
       fetchProfileFullAvatar(userId).catch(() => null),
       fetchFriendPresences([userId]).catch(() => []),
@@ -1393,17 +1616,13 @@ function queueProfileMutation(operation) {
   return scheduled;
 }
 
-async function fetchOptionalProfileViewer() {
-  try {
-    const payload = await fetchHomeBootstrap();
-    return payload.user;
-  } catch (error) {
-    if (error instanceof ApiError && error.code === "AUTH_REQUIRED") {
-      return null;
-    }
-
-    throw error;
-  }
+async function fetchProfileViewer(viewer) {
+  if (!viewer) return null;
+  const [avatarUrl, robux] = await Promise.all([
+    fetchUserHeadshot(viewer.id),
+    fetchUserRobux(),
+  ]);
+  return { ...viewer, avatarUrl, robux };
 }
 
 async function fetchProfileIdentity(userId) {
@@ -1464,6 +1683,35 @@ function normalizeProfilePresence(presence) {
 }
 
 async function fetchProfileFullAvatar(userId) {
+  const key = String(userId);
+  const cached = readMemoryCache(profileFullAvatarCache, key);
+
+  if (cached !== undefined) return cached;
+  const activeRequest = profileFullAvatarRequests.get(key);
+  if (activeRequest) return activeRequest;
+
+  const request = fetchProfileFullAvatarUncached(userId).then((avatarUrl) => {
+    writeMemoryCache(
+      profileFullAvatarCache,
+      key,
+      avatarUrl,
+      PROFILE_RESOURCE_CACHE_TTL_MS,
+      PROFILE_RESOURCE_CACHE_LIMIT,
+    );
+    return avatarUrl;
+  });
+  profileFullAvatarRequests.set(key, request);
+
+  try {
+    return await request;
+  } finally {
+    if (profileFullAvatarRequests.get(key) === request) {
+      profileFullAvatarRequests.delete(key);
+    }
+  }
+}
+
+async function fetchProfileFullAvatarUncached(userId) {
   const url = new URL("https://thumbnails.roblox.com/v1/users/avatar");
   url.searchParams.set("userIds", String(userId));
   url.searchParams.set("size", "420x420");
@@ -1691,29 +1939,17 @@ async function enrichProfileGames(entries) {
     return [];
   }
 
-  const [games, votes, icons] = await Promise.all([
-    fetchHomeGames(universeIds),
-    fetchHomeGameVotes(universeIds).catch(() => []),
-    fetchHomeGameIcons(universeIds).catch(() => []),
-  ]);
-  const gameByUniverseId = new Map(
-    games.map((game) => [Number(game?.id), game]),
-  );
-  const votesByUniverseId = new Map(
-    votes.map((vote) => [Number(vote?.id), vote]),
-  );
-  const iconByUniverseId = new Map(
-    icons.map((icon) => [Number(icon?.targetId), icon?.imageUrl]),
-  );
+  const enrichmentByUniverseId = await fetchProfileGameEnrichments(universeIds);
 
   return validEntries
     .map((entry) => {
       const universeId = Number(entry.id);
+      const enrichment = enrichmentByUniverseId.get(universeId) || {};
       return normalizeHomeFavoriteGame(
         entry,
-        gameByUniverseId.get(universeId),
-        votesByUniverseId.get(universeId),
-        iconByUniverseId.get(universeId),
+        enrichment.game,
+        enrichment.votes,
+        enrichment.iconUrl,
       );
     })
     .filter(Boolean)
@@ -1723,6 +1959,92 @@ async function enrichProfileGames(entries) {
     }));
 }
 
+async function fetchProfileGameEnrichments(universeIds) {
+  const claimed = [];
+  const valuePromises = universeIds.map((universeId) => {
+    const key = String(universeId);
+    const cached = readMemoryCache(profileGameEnrichmentCache, key);
+
+    if (cached !== undefined) {
+      return Promise.resolve([universeId, cached]);
+    }
+
+    const activeRequest = profileGameEnrichmentRequests.get(key);
+
+    if (activeRequest) {
+      return activeRequest.promise.then((value) => [universeId, value]);
+    }
+
+    const deferred = createDeferred();
+    profileGameEnrichmentRequests.set(key, deferred);
+    claimed.push({ deferred, key, universeId });
+    return deferred.promise.then((value) => [universeId, value]);
+  });
+  const valuesRequest = Promise.all(valuePromises);
+
+  if (claimed.length) {
+    resolveProfileGameEnrichmentClaims(claimed);
+  }
+
+  return new Map(await valuesRequest);
+}
+
+async function resolveProfileGameEnrichmentClaims(claimed) {
+  const universeIds = claimed.map((claim) => claim.universeId);
+
+  try {
+    const [games, votes, icons] = await Promise.all([
+      fetchHomeGames(universeIds),
+      fetchHomeGameVotes(universeIds).catch(() => []),
+      fetchHomeGameIcons(universeIds).catch(() => []),
+    ]);
+    const gameByUniverseId = new Map(
+      games.map((game) => [Number(game?.id), game]),
+    );
+    const votesByUniverseId = new Map(
+      votes.map((vote) => [Number(vote?.id), vote]),
+    );
+    const iconByUniverseId = new Map(
+      icons.map((icon) => [Number(icon?.targetId), icon?.imageUrl]),
+    );
+
+    claimed.forEach((claim) => {
+      const value = {
+        game: gameByUniverseId.get(claim.universeId) || null,
+        iconUrl: iconByUniverseId.get(claim.universeId) || null,
+        votes: votesByUniverseId.get(claim.universeId) || null,
+      };
+
+      writeMemoryCache(
+        profileGameEnrichmentCache,
+        claim.key,
+        value,
+        PROFILE_GAME_ENRICHMENT_CACHE_TTL_MS,
+        PROFILE_GAME_ENRICHMENT_CACHE_LIMIT,
+      );
+      claim.deferred.resolve(value);
+    });
+  } catch (error) {
+    claimed.forEach((claim) => claim.deferred.reject(error));
+  } finally {
+    claimed.forEach((claim) => {
+      if (profileGameEnrichmentRequests.get(claim.key) === claim.deferred) {
+        profileGameEnrichmentRequests.delete(claim.key);
+      }
+    });
+  }
+}
+
+function createDeferred() {
+  let reject;
+  let resolve;
+  const promise = new Promise((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, reject, resolve };
+}
+
 function hasNextPageCursor(payload) {
   return (
     typeof payload?.nextPageCursor === "string" &&
@@ -1730,7 +2052,7 @@ function hasNextPageCursor(payload) {
   );
 }
 
-async function fetchProfileFriends(userId) {
+async function fetchProfileFriends(userId, account) {
   const payload = await fetchJsonWithRetry(
     `https://friends.roblox.com/v1/users/${userId}/friends`,
     {
@@ -1766,7 +2088,7 @@ async function fetchProfileFriends(userId) {
     fetchFriendProfiles(userIds),
     fetchFriendPresences(userIds).catch(() => []),
     fetchFriendThumbnails(userIds).catch(() => []),
-    fetchFriendCustomNames(userIds).catch(() => []),
+    account.viewer ? fetchFriendCustomNames(userIds).catch(() => []) : [],
   ]);
   const profileByUserId = new Map(
     profiles.map((profile) => [Number(profile?.id), profile]),
@@ -2067,6 +2389,8 @@ async function mutateProfileRelationship(userId, action, sender) {
   }
 
   const authenticatedUserId = await fetchAuthenticatedUserId();
+  const viewerKey = `user:${authenticatedUserId}`;
+  updateProfileAccountScope(viewerKey);
 
   if (authenticatedUserId === userId) {
     throw new ApiError(
@@ -2076,19 +2400,16 @@ async function mutateProfileRelationship(userId, action, sender) {
   }
 
   let csrfRefreshes = 0;
-  let revalidateViewer = false;
   let transientAttempts = 0;
 
   while (transientAttempts <= SERVER_BROWSER_CONFIG.maxRetries) {
-    if (revalidateViewer) {
-      const currentUserId = await fetchAuthenticatedUserId();
+    const currentUserId = await fetchAuthenticatedUserId();
 
-      if (currentUserId !== authenticatedUserId) {
-        throw new ApiError(
-          "AUTHENTICATED_USER_CHANGED",
-          "La cuenta autenticada de Roblox cambió durante la solicitud.",
-        );
-      }
+    if (currentUserId !== authenticatedUserId) {
+      throw new ApiError(
+        "AUTHENTICATED_USER_CHANGED",
+        "La cuenta autenticada de Roblox cambió durante la solicitud.",
+      );
     }
 
     const headers = { Accept: "application/json" };
@@ -2114,7 +2435,6 @@ async function mutateProfileRelationship(userId, action, sender) {
       }
 
       await delay(getBackoffDelay(transientAttempts));
-      revalidateViewer = true;
       transientAttempts += 1;
       continue;
     }
@@ -2129,7 +2449,6 @@ async function mutateProfileRelationship(userId, action, sender) {
       ) {
         profileMutationCsrfToken = nextToken;
         csrfRefreshes += 1;
-        revalidateViewer = true;
         continue;
       }
     }
@@ -2161,6 +2480,7 @@ async function mutateProfileRelationship(userId, action, sender) {
         }
       }
 
+      invalidateProfileRead("bootstrap", userId, viewerKey);
       return { success: true };
     }
 
@@ -2169,7 +2489,6 @@ async function mutateProfileRelationship(userId, action, sender) {
       transientAttempts < SERVER_BROWSER_CONFIG.maxRetries
     ) {
       await delay(getRetryDelay(response, transientAttempts));
-      revalidateViewer = true;
       transientAttempts += 1;
       continue;
     }

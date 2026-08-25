@@ -1,53 +1,187 @@
 import { EVENTS } from "./config.js";
-import { FriendsList } from "./friends.js";
-import { GameFeed } from "./game-feed.js";
-import { HomeApp, mountHome } from "./home-app.js";
-import { HomeSearch } from "./home-search.js";
-import { installHomeJoinResultListener } from "./messaging.js";
-import { ProfileApp, mountProfile } from "./profile-app.js";
-import {
-  getProfileRedesignEnabled,
-  mountProfileModeToggle,
-  removeProfileModeToggle,
-  updateProfileModeToggle,
-  watchProfileRedesignEnabled,
-} from "./profile-mode.js";
 import { parseRoute } from "./routes.js";
 
-const components = [
-  ["rx-home-search", HomeSearch],
-  ["rx-friends-list", FriendsList],
-  ["rx-game-feed", GameFeed],
-  ["rx-home-app", HomeApp],
-  ["rx-profile-app", ProfileApp],
-];
+const HOME_ROOT_ID = "roblox-extension-home";
+const PROFILE_ROOT_ID = "roblox-extension-profile";
+const PROFILE_TOGGLE_ID = "roblox-extension-profile-mode-toggle";
+const SHARED_STYLESHEET_ID = "roblox-extension-shared-styles";
+const PROFILE_STYLESHEET_ID = "roblox-extension-profile-styles";
 
-installHomeJoinResultListener();
-registerComponents();
 document.addEventListener(EVENTS.routeChange, reconcileRoute);
+document.addEventListener("click", requestAccountSwitch);
+let homeRuntimeRequest = null;
+let profileRuntimeRequest = null;
 let profileRedesignEnabled = true;
 let profilePreferenceReady = false;
+let profilePreferenceFailed = false;
+let profilePreferenceRequest = null;
+let profilePreferenceVersion = 0;
+const stylesheetRequests = new Map();
 
 initializeRouteController();
 
-async function initializeRouteController() {
-  try {
-    profileRedesignEnabled = await getProfileRedesignEnabled();
-  } catch (error) {
-    console.warn("Roblox Extension could not load the profile preference.", error);
-  }
+function initializeRouteController() {
+  reconcileRoute();
 
-  profilePreferenceReady = true;
-  watchProfileRedesignEnabled(applyProfileRedesignPreference);
-
-  if (document.body) {
-    reconcileRoute();
-  } else {
+  if (!document.body) {
     document.addEventListener("DOMContentLoaded", reconcileRoute, { once: true });
   }
 }
 
-function registerComponents() {
+function loadRouteStyles(routeName) {
+  if (routeName === "home") {
+    return loadStylesheet(SHARED_STYLESHEET_ID, "content.css");
+  }
+
+  if (routeName === "profile") {
+    return Promise.all([
+      loadStylesheet(SHARED_STYLESHEET_ID, "content.css"),
+      loadStylesheet(PROFILE_STYLESHEET_ID, "profile.css"),
+    ]);
+  }
+
+  return null;
+}
+
+function loadStylesheet(id, path) {
+  const pendingRequest = stylesheetRequests.get(id);
+
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
+  const existingLink = document.getElementById(id);
+
+  if (existingLink?.dataset.rxLoaded === "true") {
+    return Promise.resolve();
+  }
+
+  const link = existingLink || document.createElement("link");
+  link.id = id;
+  link.rel = "stylesheet";
+  link.href = chrome.runtime.getURL(path);
+
+  const request = new Promise((resolve, reject) => {
+    link.addEventListener(
+      "load",
+      () => {
+        link.dataset.rxLoaded = "true";
+        resolve();
+      },
+      { once: true },
+    );
+    link.addEventListener(
+      "error",
+      () => reject(new Error(`Failed to load ${path}.`)),
+      { once: true },
+    );
+  }).catch((error) => {
+    stylesheetRequests.delete(id);
+    link.remove();
+    throw error;
+  });
+
+  stylesheetRequests.set(id, request);
+
+  if (!existingLink) {
+    (document.head || document.documentElement).append(link);
+  }
+
+  return request;
+}
+
+function loadHomeRuntime() {
+  if (!homeRuntimeRequest) {
+    homeRuntimeRequest = Promise.all([
+      import("./friends.js"),
+      import("./game-feed.js"),
+      import("./home-app.js"),
+      import("./home-search.js"),
+      import("./messaging.js"),
+    ])
+      .then(
+        ([friends, gameFeed, homeApp, homeSearch, messaging]) => {
+          registerComponents([
+            ["rx-home-search", homeSearch.HomeSearch],
+            ["rx-friends-list", friends.FriendsList],
+            ["rx-game-feed", gameFeed.GameFeed],
+            ["rx-home-app", homeApp.HomeApp],
+          ]);
+          messaging.installHomeJoinResultListener();
+          return { mount: homeApp.mountHome };
+        },
+      )
+      .catch((error) => {
+        homeRuntimeRequest = null;
+        throw error;
+      });
+  }
+
+  return homeRuntimeRequest;
+}
+
+function loadProfileRuntime() {
+  if (!profileRuntimeRequest) {
+    profileRuntimeRequest = Promise.all([
+      import("./profile-app.js"),
+      import("./profile-mode.js"),
+    ])
+      .then(([profileApp, profileMode]) => {
+        registerComponents([["rx-profile-app", profileApp.ProfileApp]]);
+        const runtime = {
+          getPreference: profileMode.getProfileRedesignEnabled,
+          mount: profileApp.mountProfile,
+          mountToggle: profileMode.mountProfileModeToggle,
+          removeToggle: profileMode.removeProfileModeToggle,
+          updateToggle: profileMode.updateProfileModeToggle,
+        };
+        profileMode.watchProfileRedesignEnabled((enabled) =>
+          applyProfileRedesignPreference(runtime, enabled),
+        );
+        return runtime;
+      })
+      .catch((error) => {
+        profileRuntimeRequest = null;
+        throw error;
+      });
+  }
+
+  return profileRuntimeRequest;
+}
+
+function loadProfilePreference(runtime) {
+  if (profilePreferenceRequest || profilePreferenceReady) {
+    return;
+  }
+
+  const requestVersion = profilePreferenceVersion;
+  profilePreferenceRequest = runtime
+    .getPreference()
+    .then((enabled) => {
+      if (requestVersion !== profilePreferenceVersion) {
+        return;
+      }
+
+      profileRedesignEnabled = enabled;
+      profilePreferenceReady = true;
+      profilePreferenceFailed = false;
+    })
+    .catch((error) => {
+      if (requestVersion !== profilePreferenceVersion) {
+        return;
+      }
+
+      profilePreferenceReady = true;
+      profilePreferenceFailed = true;
+      console.warn("Roblox Extension could not load the profile preference.", error);
+    })
+    .finally(() => {
+      profilePreferenceRequest = null;
+      reconcileRoute();
+    });
+}
+
+function registerComponents(components) {
   const componentRegistry = window.customElements;
 
   if (componentRegistry) {
@@ -112,51 +246,119 @@ function registerComponents() {
 }
 
 function reconcileRoute() {
-  if (!profilePreferenceReady) {
-    return;
-  }
-
   const route = parseRoute(location.pathname);
+  const routeStylesRequest = loadRouteStyles(route?.name);
   document.documentElement.classList.toggle(
     "roblox-extension-home-active",
     route?.name === "home",
   );
-  document.documentElement.classList.toggle(
-    "roblox-extension-profile-active",
-    route?.name === "profile" && profileRedesignEnabled,
-  );
+  document.documentElement.classList.remove("roblox-extension-profile-active");
 
-  if (!document.body) return;
+  if (!document.body) {
+    routeStylesRequest?.catch((error) =>
+      handleRuntimeLoadFailure(route.name, error),
+    );
+    return;
+  }
 
   if (route?.name === "home") {
-    removeProfileModeToggle();
-    document.getElementById("roblox-extension-profile")?.remove();
-    mountHome();
+    removeProfileUi();
+    Promise.all([routeStylesRequest, loadHomeRuntime()])
+      .then(([, runtime]) => {
+        if (parseRoute(location.pathname)?.name === "home" && document.body) {
+          runtime.mount();
+        }
+      })
+      .catch((error) => handleRuntimeLoadFailure("home", error));
     return;
   }
 
   if (route?.name === "profile") {
-    document.getElementById("roblox-extension-home")?.remove();
-    mountProfileModeToggle(
-      profileRedesignEnabled,
-      applyProfileRedesignPreference,
-    );
-
-    if (profileRedesignEnabled) {
-      mountProfile();
-    } else {
-      document.getElementById("roblox-extension-profile")?.remove();
-    }
+    document.getElementById(HOME_ROOT_ID)?.remove();
+    Promise.all([routeStylesRequest, loadProfileRuntime()])
+      .then(([, runtime]) => reconcileProfileRoute(runtime))
+      .catch((error) => handleRuntimeLoadFailure("profile", error));
     return;
   }
 
-  removeProfileModeToggle();
-  document.getElementById("roblox-extension-home")?.remove();
-  document.getElementById("roblox-extension-profile")?.remove();
+  document.getElementById(HOME_ROOT_ID)?.remove();
+  removeProfileUi();
 }
 
-function applyProfileRedesignPreference(enabled) {
+function reconcileProfileRoute(runtime) {
+  if (parseRoute(location.pathname)?.name !== "profile" || !document.body) {
+    return;
+  }
+
+  if (!profilePreferenceReady) {
+    removeProfileUi(runtime);
+    loadProfilePreference(runtime);
+    return;
+  }
+
+  if (profilePreferenceFailed) {
+    removeProfileUi(runtime);
+    return;
+  }
+
+  runtime.mountToggle(profileRedesignEnabled, (enabled) =>
+    applyProfileRedesignPreference(runtime, enabled),
+  );
+
+  if (profileRedesignEnabled) {
+    runtime.mount();
+    document.documentElement.classList.toggle(
+      "roblox-extension-profile-active",
+      Boolean(document.getElementById(PROFILE_ROOT_ID)),
+    );
+  } else {
+    document.getElementById(PROFILE_ROOT_ID)?.remove();
+  }
+}
+
+function applyProfileRedesignPreference(runtime, enabled) {
+  profilePreferenceVersion += 1;
   profileRedesignEnabled = enabled;
-  updateProfileModeToggle(enabled);
+  profilePreferenceReady = true;
+  profilePreferenceFailed = false;
+  runtime.updateToggle(enabled);
   reconcileRoute();
+}
+
+function removeProfileUi(runtime) {
+  document.documentElement.classList.remove("roblox-extension-profile-active");
+  document.getElementById(PROFILE_ROOT_ID)?.remove();
+
+  if (runtime) {
+    runtime.removeToggle();
+  } else {
+    document.getElementById(PROFILE_TOGGLE_ID)?.remove();
+  }
+}
+
+function handleRuntimeLoadFailure(routeName, error) {
+  console.error(`Roblox Extension ${routeName} frontend failed to load.`, error);
+
+  if (parseRoute(location.pathname)?.name !== routeName) {
+    return;
+  }
+
+  if (routeName === "home") {
+    document.documentElement.classList.remove("roblox-extension-home-active");
+    document.getElementById(HOME_ROOT_ID)?.remove();
+    return;
+  }
+
+  removeProfileUi();
+}
+
+function requestAccountSwitch(event) {
+  const button = event.target.closest("[data-account-switch]");
+
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  button.closest("details")?.removeAttribute("open");
+  document.dispatchEvent(new CustomEvent(EVENTS.accountSwitchRequest));
 }
