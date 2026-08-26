@@ -15,6 +15,7 @@ export const MESSAGE_TYPES = {
   profileFriends: "GET_PROFILE_FRIENDS",
   profileFriendRequest: "REQUEST_PROFILE_FRIEND",
   profileFollow: "FOLLOW_PROFILE_USER",
+  terminalProfileTarget: "GET_TERMINAL_PROFILE_TARGET",
 };
 
 export const EVENTS = {

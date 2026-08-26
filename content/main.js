@@ -2,6 +2,7 @@ import { EVENTS } from "./config.js";
 import { parseRoute } from "./routes.js";
 
 const HOME_ROOT_ID = "roblox-extension-home";
+const TERMINAL_ROOT_ID = "roblox-extension-terminal";
 const PROFILE_ROOT_ID = "roblox-extension-profile";
 const PROFILE_TOGGLE_ID = "roblox-extension-profile-mode-toggle";
 const SHARED_STYLESHEET_ID = "roblox-extension-shared-styles";
@@ -10,6 +11,8 @@ const PROFILE_STYLESHEET_ID = "roblox-extension-profile-styles";
 document.addEventListener(EVENTS.routeChange, reconcileRoute);
 document.addEventListener("click", requestAccountSwitch);
 let homeRuntimeRequest = null;
+let terminalDocumentRequest = null;
+let terminalRuntimeRequest = null;
 let profileRuntimeRequest = null;
 let profileRedesignEnabled = true;
 let profilePreferenceReady = false;
@@ -41,6 +44,64 @@ function loadRouteStyles(routeName) {
   }
 
   return null;
+}
+
+function loadTerminalDocument() {
+  if (!terminalDocumentRequest) {
+    terminalDocumentRequest = fetch(chrome.runtime.getURL("content/terminal.html"))
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load terminal markup (${response.status}).`);
+        }
+
+        return response.text();
+      })
+      .then((markup) => {
+        const documentTemplate = new DOMParser().parseFromString(markup, "text/html");
+        const root = documentTemplate.body.firstElementChild;
+
+        if (!root || root.id !== TERMINAL_ROOT_ID) {
+          throw new Error("Terminal markup must contain the terminal root.");
+        }
+
+        return root;
+      })
+      .catch((error) => {
+        terminalDocumentRequest = null;
+        throw error;
+      });
+  }
+
+  return terminalDocumentRequest;
+}
+
+function loadTerminalRuntime() {
+  if (!terminalRuntimeRequest) {
+    terminalRuntimeRequest = import("./terminal.js").catch((error) => {
+      terminalRuntimeRequest = null;
+      throw error;
+    });
+  }
+
+  return terminalRuntimeRequest;
+}
+
+function mountTerminal() {
+  if (document.getElementById(TERMINAL_ROOT_ID)) {
+    return;
+  }
+
+  Promise.all([loadTerminalDocument(), loadTerminalRuntime()])
+    .then(([root, runtime]) => {
+      if (parseRoute(location.pathname)?.name !== "terminal" || !document.body) {
+        return;
+      }
+
+      const terminalRoot = root.cloneNode(true);
+      document.body.append(terminalRoot);
+      runtime.mountTerminal(terminalRoot);
+    })
+    .catch((error) => handleRuntimeLoadFailure("terminal", error));
 }
 
 function loadStylesheet(id, path) {
@@ -252,6 +313,10 @@ function reconcileRoute() {
     "roblox-extension-home-active",
     route?.name === "home",
   );
+  document.documentElement.classList.toggle(
+    "roblox-extension-terminal-active",
+    route?.name === "terminal",
+  );
   document.documentElement.classList.remove("roblox-extension-profile-active");
 
   if (!document.body) {
@@ -262,6 +327,7 @@ function reconcileRoute() {
   }
 
   if (route?.name === "home") {
+    document.getElementById(TERMINAL_ROOT_ID)?.remove();
     removeProfileUi();
     Promise.all([routeStylesRequest, loadHomeRuntime()])
       .then(([, runtime]) => {
@@ -273,8 +339,16 @@ function reconcileRoute() {
     return;
   }
 
+  if (route?.name === "terminal") {
+    document.getElementById(HOME_ROOT_ID)?.remove();
+    removeProfileUi();
+    mountTerminal();
+    return;
+  }
+
   if (route?.name === "profile") {
     document.getElementById(HOME_ROOT_ID)?.remove();
+    document.getElementById(TERMINAL_ROOT_ID)?.remove();
     Promise.all([routeStylesRequest, loadProfileRuntime()])
       .then(([, runtime]) => reconcileProfileRoute(runtime))
       .catch((error) => handleRuntimeLoadFailure("profile", error));
@@ -282,6 +356,7 @@ function reconcileRoute() {
   }
 
   document.getElementById(HOME_ROOT_ID)?.remove();
+  document.getElementById(TERMINAL_ROOT_ID)?.remove();
   removeProfileUi();
 }
 
@@ -346,6 +421,12 @@ function handleRuntimeLoadFailure(routeName, error) {
   if (routeName === "home") {
     document.documentElement.classList.remove("roblox-extension-home-active");
     document.getElementById(HOME_ROOT_ID)?.remove();
+    return;
+  }
+
+  if (routeName === "terminal") {
+    document.documentElement.classList.remove("roblox-extension-terminal-active");
+    document.getElementById(TERMINAL_ROOT_ID)?.remove();
     return;
   }
 

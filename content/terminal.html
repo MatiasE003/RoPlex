@@ -1,0 +1,76 @@
+<main id="roblox-extension-terminal" aria-label="Roblox terminal">
+  <style>
+    #roblox-extension-terminal {
+      box-sizing: border-box;
+      display: flex;
+      min-height: 100%;
+      height: 100vh;
+      padding: 24px;
+      background: #101318;
+      color: #e8f0e8;
+      font: 16px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      overflow: hidden;
+    }
+
+    #roblox-extension-terminal__window {
+      display: flex;
+      width: 100%;
+      min-height: 0;
+      height: 100%;
+      align-items: flex-end;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
+    #roblox-extension-terminal__transcript {
+      width: 100%;
+      min-height: 0;
+      flex: 1;
+      overflow-y: auto;
+      scrollbar-color: #355044 transparent;
+    }
+
+    .roblox-extension-terminal__entry {
+      margin: 0 0 8px;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .roblox-extension-terminal__entry--command {
+      color: #e8f0e8;
+    }
+
+    .roblox-extension-terminal__entry--prompt {
+      color: #82d69a;
+    }
+
+    .roblox-extension-terminal__entry--error {
+      color: #ff6b6b;
+    }
+
+    #roblox-extension-terminal__line {
+      margin: 0;
+      display: flex;
+      width: 100%;
+      align-items: center;
+      color: #82d69a;
+    }
+
+    #roblox-extension-terminal__input {
+      min-width: 0;
+      flex: 1;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+    }
+  </style>
+  <section id="roblox-extension-terminal__window">
+    <section id="roblox-extension-terminal__transcript" aria-live="polite" aria-label="Terminal history"></section>
+    <label id="roblox-extension-terminal__line" for="roblox-extension-terminal__input">
+      <span>roblox@terminal:~$&nbsp;</span>
+      <input id="roblox-extension-terminal__input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus aria-label="Terminal command">
+    </label>
+  </section>
+</main>

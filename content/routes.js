@@ -1,4 +1,5 @@
 const HOME_PATH_PATTERN = /^\/home\/?$/;
+const TERMINAL_PATH_PATTERN = /^\/terminal\/?$/;
 const PROFILE_PATH_PATTERN = /^\/(?:(?<locale>[a-z]{2}(?:-[a-z]{2})?)\/)?users\/(?<userId>[1-9]\d*)\/profile\/?$/i;
 
 export function parseRoute(pathname = location.pathname) {
@@ -8,6 +9,10 @@ export function parseRoute(pathname = location.pathname) {
 
   if (HOME_PATH_PATTERN.test(pathname)) {
     return { name: "home" };
+  }
+
+  if (TERMINAL_PATH_PATTERN.test(pathname)) {
+    return { name: "terminal" };
   }
 
   const match = PROFILE_PATH_PATTERN.exec(pathname);

@@ -1,5 +1,7 @@
 html.roblox-extension-home-active,
 html.roblox-extension-home-active body,
+html.roblox-extension-terminal-active,
+html.roblox-extension-terminal-active body,
 html.roblox-extension-profile-active,
 html.roblox-extension-profile-active body {
   min-width: 320px;
@@ -12,6 +14,18 @@ html.roblox-extension-profile-active body {
 html.roblox-extension-home-active
   body
   > :not(#roblox-extension-home):not(#chat-container) {
+  display: none !important;
+}
+
+html.roblox-extension-terminal-active,
+html.roblox-extension-terminal-active body {
+  height: 100%;
+  overflow: hidden !important;
+}
+
+html.roblox-extension-terminal-active
+  body
+  > :not(#roblox-extension-terminal):not(#chat-container) {
   display: none !important;
 }
 

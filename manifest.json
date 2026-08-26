@@ -70,7 +70,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["content/*.js", "content.css", "profile.css"],
+      "resources": ["content/*.js", "content/terminal.html", "content.css", "profile.css"],
       "matches": ["https://www.roblox.com/*"]
     }
   ]

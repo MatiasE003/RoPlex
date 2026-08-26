@@ -216,6 +216,10 @@ async function handleMessage(message, sender) {
     return fetchHomeRecommended();
   }
 
+  if (message.type === "GET_TERMINAL_PROFILE_TARGET") {
+    return resolveTerminalProfileTarget(parseTerminalProfileTarget(message.target));
+  }
+
   if (message.type === "GET_PROFILE_BOOTSTRAP") {
     return fetchCachedProfileRead(
       "bootstrap",
@@ -2287,6 +2291,83 @@ function parseHomeSearchQuery(value) {
   }
 
   return query;
+}
+
+function parseTerminalProfileTarget(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const target = normalizeHomeText(value, 50);
+
+  if (!target || /[\u0000-\u001F\u007F]/.test(target)) {
+    throw new ApiError(
+      "INVALID_TERMINAL_PROFILE_TARGET",
+      "El perfil debe ser un UserId o un nickname válido.",
+    );
+  }
+
+  return target;
+}
+
+async function resolveTerminalProfileTarget(target) {
+  if (!target) {
+    return { userId: await fetchAuthenticatedUserId() };
+  }
+
+  if (/^\d+$/.test(target)) {
+    return { userId: parseUserId(target) };
+  }
+
+  const usernamePayload = await fetchJsonWithRetry(
+    "https://users.roblox.com/v1/usernames/users",
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        excludeBannedUsers: true,
+        usernames: [target],
+      }),
+    },
+  );
+  const usernameMatch = Array.isArray(usernamePayload?.data)
+    ? usernamePayload.data[0]
+    : null;
+  const usernameUserId = Number(usernameMatch?.id);
+
+  if (Number.isSafeInteger(usernameUserId) && usernameUserId > 0) {
+    return { userId: usernameUserId };
+  }
+
+  const searchUrl = new URL("https://users.roblox.com/v1/users/search");
+  searchUrl.searchParams.set("keyword", target);
+  searchUrl.searchParams.set("limit", "10");
+  const searchPayload = await fetchJsonWithRetry(searchUrl.href, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  const normalizedTarget = target.toLocaleLowerCase();
+  const nicknameMatch = Array.isArray(searchPayload?.data)
+    ? searchPayload.data.find(
+        (user) =>
+          normalizeHomeText(user?.displayName, 50).toLocaleLowerCase() ===
+          normalizedTarget,
+      )
+    : null;
+  const userId = Number(nicknameMatch?.id);
+
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    throw new ApiError(
+      "TERMINAL_PROFILE_NOT_FOUND",
+      `No se encontró el usuario o nickname ${target}.`,
+    );
+  }
+
+  return { userId };
 }
 
 async function fetchCachedProfileRead(kind, userId, loader, staleRetries = 0) {
