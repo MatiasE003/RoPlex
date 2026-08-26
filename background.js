@@ -15,6 +15,18 @@ const SERVER_BROWSER_CONFIG = Object.freeze({
   serversPerPage: 100,
 });
 
+const HTTP_CONFIG = Object.freeze({
+  attemptTimeoutMs: 10 * 1000,
+  defaultOriginConcurrency: 8,
+  operationDeadlineMs: 35 * 1000,
+  retryableStatuses: new Set([408, 425, 429, 500, 502, 503, 504]),
+});
+const HTTP_ORIGIN_CONCURRENCY = Object.freeze({
+  "https://ipwho.is": 2,
+  "https://thumbnails.roblox.com": 6,
+  "https://users.roblox.com": 6,
+});
+
 const CACHE_KEY_PREFIX = "roblox-server-region:";
 const CACHE_VERSION = 3;
 const DATA_CENTER_LOCATION_CACHE_KEY_PREFIX =
@@ -22,8 +34,17 @@ const DATA_CENTER_LOCATION_CACHE_KEY_PREFIX =
 const DATA_CENTER_LOCATION_CACHE_VERSION = 1;
 const GEOLOCATION_CACHE_KEY_PREFIX = "roblox-server-geolocation:";
 const GEOLOCATION_CACHE_VERSION = 1;
+const CACHE_INDEX_VERSION = 1;
+const LOCAL_CACHE_INDEX_KEY = "roblox-server-cache-index:v1";
+const SESSION_REGION_CACHE_INDEX_KEY = "roblox-server-region-index:v1";
+const THROTTLE_STATE_KEY = "roblox-server-throttle-state:v1";
+const THROTTLE_STATE_VERSION = 1;
 const HOME_DISCOVERY_CACHE_TTL_MS = 30 * 1000;
-const HOME_FRIEND_PREVIEW_CACHE_TTL_MS = 5 * 60 * 1000;
+const HOME_DISCOVERY_CACHE_LIMIT = 4;
+const HOME_FRIEND_ACTIVITY_CACHE_TTL_MS = 30 * 1000;
+const HOME_FRIEND_PREVIEW_CACHE_LIMIT = 128;
+const HOME_FRIEND_STABLE_CACHE_TTL_MS = 5 * 60 * 1000;
+const REGION_MEMORY_CACHE_LIMIT = 2_000;
 const PROFILE_BADGE_LIMIT = 16;
 const PROFILE_GAME_ENRICHMENT_CACHE_LIMIT = 512;
 const PROFILE_GAME_ENRICHMENT_CACHE_TTL_MS = 60 * 1000;
@@ -52,9 +73,19 @@ let geolocationGate = Promise.resolve();
 let nextGeolocationCheckAt = 0;
 const geolocationRequests = new Map();
 const dataCenterLocationRequests = new Map();
-const homeFriendPreviewCache = new Map();
-let homeDiscoveryCache = null;
-let homeDiscoveryRequest = null;
+const homeDiscoveryCache = new Map();
+const homeDiscoveryRequests = new Map();
+let homeAccountKey = null;
+let homeAccountEpoch = 0;
+const homeFriendStableCache = new Map();
+const homeFriendStableRequests = new Map();
+const homeFriendActivityCache = new Map();
+const homeFriendActivityRequests = new Map();
+const regionMemoryCache = new Map();
+const httpOriginBudgets = new Map();
+let throttleStateWrite = Promise.resolve();
+let sessionCacheIndexWrite = Promise.resolve();
+let localCacheIndexWrite = Promise.resolve();
 let badgeCsrfToken = null;
 let profileMutationCsrfToken = null;
 let profileMutationGate = Promise.resolve();
@@ -71,6 +102,7 @@ const SERVER_ANALYSIS_PORT_NAME = "roblox-server-analysis";
 const SERVER_ANALYSIS_RESULT_CHUNK_SIZE = 24;
 const SERVER_ANALYSIS_RESULT_FLUSH_MS = 120;
 const serverAnalysisOperations = new Map();
+const throttleStateRestore = restoreCriticalThrottleState();
 
 class ApiError extends Error {
   constructor(code, message, details = {}) {
@@ -141,11 +173,11 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  cleanupExpiredCache().catch(() => {});
+  Promise.allSettled([restoreCriticalThrottleState(), cleanupExpiredCache()]);
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  cleanupExpiredCache().catch(() => {});
+  Promise.allSettled([restoreCriticalThrottleState(), cleanupExpiredCache()]);
 });
 
 async function handleMessage(message, sender) {
@@ -552,7 +584,7 @@ async function analyzePublicServerPage(operation, publicServers) {
   throwIfAnalysisAborted(signal);
 
   if (Object.keys(cacheWrites).length) {
-    await writeLocalCache(cacheWrites);
+    await writeRegionCacheBatch(cacheWrites);
   }
 }
 
@@ -601,12 +633,22 @@ function pumpServerAnalysisQueue(operation) {
 async function readCachedRegionsBatch(placeId, servers, signal) {
   throwIfAnalysisAborted(signal);
   const keys = servers.map((server) => getCacheKey(server.jobId));
-  let stored;
+  const stored = {};
+  const missingKeys = [];
 
-  try {
-    stored = await chrome.storage.local.get(keys);
-  } catch {
-    return new Map();
+  for (const key of keys) {
+    const memoryEntry = readMemoryCache(regionMemoryCache, key);
+    if (memoryEntry === undefined) missingKeys.push(key);
+    else stored[key] = memoryEntry;
+  }
+
+  const sessionStorage = getSessionStorageArea();
+
+  if (missingKeys.length && sessionStorage) {
+    Object.assign(
+      stored,
+      await optionalStorageOperation(sessionStorage.get(missingKeys), {}),
+    );
   }
 
   throwIfAnalysisAborted(signal);
@@ -624,6 +666,16 @@ async function readCachedRegionsBatch(placeId, servers, signal) {
       Number.isFinite(entry.timestamp) &&
       Date.now() - entry.timestamp <= SERVER_BROWSER_CONFIG.cacheTtlMs
     ) {
+      writeMemoryCache(
+        regionMemoryCache,
+        key,
+        entry,
+        Math.max(
+          1,
+          SERVER_BROWSER_CONFIG.cacheTtlMs - (Date.now() - entry.timestamp),
+        ),
+        REGION_MEMORY_CACHE_LIMIT,
+      );
       cached.set(server.jobId, {
         dataCenterId: toNullableInteger(entry.dataCenterId),
         endpointAddress: normalizeIpAddress(entry.endpointAddress),
@@ -637,8 +689,8 @@ async function readCachedRegionsBatch(placeId, servers, signal) {
     }
   });
 
-  if (expiredKeys.length && !signal.aborted) {
-    chrome.storage.local.remove(expiredKeys).catch(() => {});
+  if (expiredKeys.length && !signal.aborted && sessionStorage) {
+    sessionStorage.remove(expiredKeys).catch(() => {});
   }
 
   return cached;
@@ -798,6 +850,10 @@ async function fetchIpLocationForAnalysis(address, signal) {
     "success,message,ip,continent,country,country_code,region,city,latitude,longitude",
   );
   url.searchParams.set("lang", "es");
+  const deadlineAt = Date.now() + HTTP_CONFIG.operationDeadlineMs;
+  const policy = {
+    attemptTimeoutMs: HTTP_CONFIG.attemptTimeoutMs,
+  };
 
   for (
     let attempt = 0;
@@ -810,25 +866,46 @@ async function fetchIpLocationForAnalysis(address, signal) {
       return null;
     }
 
-    await waitForGeolocationSlot(signal);
+    await waitForGeolocationSlot(signal, deadlineAt);
     throwIfAnalysisAborted(signal);
+    if (Date.now() < geolocationBlockedUntil) return null;
 
-    let response;
+    let result;
 
     try {
-      response = await fetch(url.href, {
-        credentials: "omit",
-        headers: { Accept: "application/json" },
-        referrerPolicy: "no-referrer",
-        signal,
-      });
+      result = await runHttpAttempt(
+        url.href,
+        {
+          credentials: "omit",
+          headers: { Accept: "application/json" },
+          referrerPolicy: "no-referrer",
+          signal,
+        },
+        policy,
+        deadlineAt,
+        async (response) => {
+          let payload = null;
+          if (response.ok) {
+            try {
+              payload = await response.json();
+            } catch {
+              payload = null;
+            }
+          }
+          return { payload, response };
+        },
+      );
     } catch (error) {
       if (isAnalysisCancellation(error, signal)) {
         throw createAnalysisCancellationError();
       }
 
       if (attempt < SERVER_BROWSER_CONFIG.geolocationMaxRetries) {
-        await abortableDelay(getBackoffDelay(attempt), signal);
+        await waitForHttpRetry(
+          getBackoffDelay(attempt),
+          deadlineAt,
+          signal,
+        );
         continue;
       }
 
@@ -841,6 +918,8 @@ async function fetchIpLocationForAnalysis(address, signal) {
       return null;
     }
 
+    const { payload, response } = result;
+
     if (response.status === 429) {
       geolocationBlockedUntil =
         Date.now() +
@@ -848,6 +927,7 @@ async function fetchIpLocationForAnalysis(address, signal) {
           response.headers.get("Retry-After"),
           24 * 60 * 60 * 1000,
         );
+      persistCriticalThrottleState();
       throwIfAnalysisAborted(signal);
       await writeCachedGeolocation(
         address,
@@ -857,20 +937,26 @@ async function fetchIpLocationForAnalysis(address, signal) {
       return null;
     }
 
-    if (response.status >= 500 && attempt < SERVER_BROWSER_CONFIG.geolocationMaxRetries) {
-      await abortableDelay(getBackoffDelay(attempt), signal);
+    if (
+      response.status >= 500 &&
+      attempt < SERVER_BROWSER_CONFIG.geolocationMaxRetries
+    ) {
+      const retryAfterMs = parseRetryAfterMs(
+        response.headers.get("Retry-After"),
+      );
+      if (retryAfterMs !== null) registerHttpOriginCooldown(url.href, retryAfterMs);
+      await waitForHttpRetry(
+        retryAfterMs ?? getBackoffDelay(attempt),
+        deadlineAt,
+        signal,
+        response.status,
+      );
       continue;
     }
 
     let location = null;
 
-    if (response.ok) {
-      try {
-        location = normalizeIpLocation(await response.json(), address);
-      } catch {
-        location = null;
-      }
-    }
+    if (response.ok) location = normalizeIpLocation(payload, address);
 
     throwIfAnalysisAborted(signal);
     await writeCachedGeolocation(
@@ -1091,8 +1177,11 @@ async function deleteOwnBadge(badgeId, inventoryUserId) {
   let csrfRefreshes = 0;
   let shouldRevalidateUser = false;
   let transientAttempts = 0;
+  const deadlineAt = Date.now() + HTTP_CONFIG.operationDeadlineMs;
+  const mutationPolicy = { attemptTimeoutMs: HTTP_CONFIG.attemptTimeoutMs };
 
   while (transientAttempts <= SERVER_BROWSER_CONFIG.maxRetries) {
+    throwIfHttpDeadlineExceeded(deadlineAt);
     let response;
 
     try {
@@ -1113,16 +1202,21 @@ async function deleteOwnBadge(badgeId, inventoryUserId) {
         headers["X-CSRF-TOKEN"] = badgeCsrfToken;
       }
 
-      response = await fetch(
+      response = await runHttpAttempt(
         `https://badges.roblox.com/v1/user/badges/${badgeId}`,
         {
           method: "DELETE",
           credentials: "include",
           headers,
         },
+        mutationPolicy,
+        deadlineAt,
       );
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (
+        error instanceof ApiError &&
+        error.code !== "HTTP_ATTEMPT_TIMEOUT"
+      ) {
         throw error;
       }
 
@@ -1134,7 +1228,11 @@ async function deleteOwnBadge(badgeId, inventoryUserId) {
         );
       }
 
-      await delay(getBackoffDelay(transientAttempts));
+      await waitForHttpRetry(
+        getBackoffDelay(transientAttempts),
+        deadlineAt,
+        null,
+      );
       shouldRevalidateUser = true;
       transientAttempts += 1;
       continue;
@@ -1163,7 +1261,12 @@ async function deleteOwnBadge(badgeId, inventoryUserId) {
       (response.status === 429 || response.status >= 500) &&
       transientAttempts < SERVER_BROWSER_CONFIG.maxRetries
     ) {
-      await delay(getRetryDelay(response, transientAttempts));
+      await waitForHttpRetry(
+        getRetryDelay(response, transientAttempts),
+        deadlineAt,
+        null,
+        response.status,
+      );
       shouldRevalidateUser = true;
       transientAttempts += 1;
       continue;
@@ -1594,18 +1697,21 @@ async function fetchHomeContinue() {
 }
 
 async function fetchHomeDiscoveryFeed() {
-  if (
-    homeDiscoveryCache &&
-    Date.now() - homeDiscoveryCache.timestamp < HOME_DISCOVERY_CACHE_TTL_MS
-  ) {
-    return homeDiscoveryCache.value;
+  const account = await resolveHomeAccountContext();
+  const cached = readMemoryCache(homeDiscoveryCache, account.key);
+
+  if (cached !== undefined) {
+    await validateHomeAccountContext(account);
+    return cached;
   }
 
-  if (homeDiscoveryRequest) {
-    return homeDiscoveryRequest;
+  const existingRequest = homeDiscoveryRequests.get(account.key);
+
+  if (existingRequest) {
+    return existingRequest;
   }
 
-  homeDiscoveryRequest = fetchJsonWithRetry(
+  const request = fetchJsonWithRetry(
     "https://apis.roblox.com/discovery-api/omni-recommendation",
     {
       method: "POST",
@@ -1622,7 +1728,7 @@ async function fetchHomeDiscoveryFeed() {
       }),
     },
   )
-    .then((payload) => {
+    .then(async (payload) => {
       if (!Array.isArray(payload?.sorts)) {
         throw new ApiError(
           "INVALID_HOME_DISCOVERY_RESPONSE",
@@ -1630,14 +1736,54 @@ async function fetchHomeDiscoveryFeed() {
         );
       }
 
-      homeDiscoveryCache = { timestamp: Date.now(), value: payload };
+      await validateHomeAccountContext(account);
+      writeMemoryCache(
+        homeDiscoveryCache,
+        account.key,
+        payload,
+        HOME_DISCOVERY_CACHE_TTL_MS,
+        HOME_DISCOVERY_CACHE_LIMIT,
+      );
       return payload;
     })
     .finally(() => {
-      homeDiscoveryRequest = null;
+      if (homeDiscoveryRequests.get(account.key) === request) {
+        homeDiscoveryRequests.delete(account.key);
+      }
     });
 
-  return homeDiscoveryRequest;
+  setBoundedMemoryRequest(
+    homeDiscoveryRequests,
+    account.key,
+    request,
+    HOME_DISCOVERY_CACHE_LIMIT,
+  );
+  return request;
+}
+
+async function resolveHomeAccountContext() {
+  const userId = await fetchAuthenticatedUserId();
+  const key = `user:${userId}`;
+
+  if (homeAccountKey !== key) {
+    homeAccountKey = key;
+    homeAccountEpoch += 1;
+    homeDiscoveryCache.clear();
+    homeDiscoveryRequests.clear();
+  }
+
+  return { epoch: homeAccountEpoch, key, userId };
+}
+
+async function validateHomeAccountContext(account) {
+  const current = await resolveHomeAccountContext();
+
+  if (current.key !== account.key || current.epoch !== account.epoch) {
+    throw new ApiError(
+      "AUTHENTICATED_USER_CHANGED",
+      "La cuenta autenticada de Roblox cambió durante la solicitud.",
+    );
+  }
 }
 
 async function fetchHomeRecommended() {
@@ -1955,17 +2101,23 @@ function normalizeHomeFriend(profile, presence, thumbnail, customNameValue) {
 }
 
 async function fetchHomeFriendPreview(userId, universeId) {
-  const cacheKey = `${userId}:${universeId || 0}`;
-  const cached = homeFriendPreviewCache.get(cacheKey);
+  const [stable, game] = await Promise.all([
+    fetchHomeFriendStablePreview(userId),
+    universeId ? fetchHomeFriendActivityPreview(universeId) : null,
+  ]);
 
-  if (
-    cached &&
-    Date.now() - cached.timestamp < HOME_FRIEND_PREVIEW_CACHE_TTL_MS
-  ) {
-    return cached.value;
-  }
+  return { ...stable, game };
+}
 
-  const [profile, friends, followers, following, game] = await Promise.all([
+async function fetchHomeFriendStablePreview(userId) {
+  const key = String(userId);
+  const cached = readMemoryCache(homeFriendStableCache, key);
+
+  if (cached !== undefined) return cached;
+  const existing = homeFriendStableRequests.get(key);
+  if (existing) return existing;
+
+  const request = Promise.all([
     fetchJsonWithRetry(`https://users.roblox.com/v1/users/${userId}`, {
       credentials: "include",
       headers: { Accept: "application/json" },
@@ -1973,31 +2125,78 @@ async function fetchHomeFriendPreview(userId, universeId) {
     fetchHomeSocialCount(userId, "friends"),
     fetchHomeSocialCount(userId, "followers"),
     fetchHomeSocialCount(userId, "followings"),
-    universeId ? fetchHomeGamePreview(universeId) : null,
-  ]);
-  const created = typeof profile?.created === "string" ? profile.created : "";
+  ])
+    .then(([profile, friends, followers, following]) => {
+      const created =
+        typeof profile?.created === "string" ? profile.created : "";
 
-  if (!Number.isFinite(Date.parse(created))) {
-    throw new ApiError(
-      "INVALID_FRIEND_PREVIEW_RESPONSE",
-      "Roblox devolvió un perfil de amigo inválido.",
-    );
-  }
+      if (!Number.isFinite(Date.parse(created))) {
+        throw new ApiError(
+          "INVALID_FRIEND_PREVIEW_RESPONSE",
+          "Roblox devolvió un perfil de amigo inválido.",
+        );
+      }
 
-  const value = {
-    created,
-    game,
-    stats: {
-      followers,
-      following,
-      friends,
-    },
-  };
-  homeFriendPreviewCache.set(cacheKey, {
-    timestamp: Date.now(),
-    value,
-  });
-  return value;
+      const value = {
+        created,
+        stats: { followers, following, friends },
+      };
+      writeMemoryCache(
+        homeFriendStableCache,
+        key,
+        value,
+        HOME_FRIEND_STABLE_CACHE_TTL_MS,
+        HOME_FRIEND_PREVIEW_CACHE_LIMIT,
+      );
+      return value;
+    })
+    .finally(() => {
+      if (homeFriendStableRequests.get(key) === request) {
+        homeFriendStableRequests.delete(key);
+      }
+    });
+
+  setBoundedMemoryRequest(
+    homeFriendStableRequests,
+    key,
+    request,
+    HOME_FRIEND_PREVIEW_CACHE_LIMIT,
+  );
+  return request;
+}
+
+async function fetchHomeFriendActivityPreview(universeId) {
+  const key = String(universeId);
+  const cached = readMemoryCache(homeFriendActivityCache, key);
+
+  if (cached !== undefined) return cached;
+  const existing = homeFriendActivityRequests.get(key);
+  if (existing) return existing;
+
+  const request = fetchHomeGamePreview(universeId)
+    .then((game) => {
+      writeMemoryCache(
+        homeFriendActivityCache,
+        key,
+        game,
+        HOME_FRIEND_ACTIVITY_CACHE_TTL_MS,
+        HOME_FRIEND_PREVIEW_CACHE_LIMIT,
+      );
+      return game;
+    })
+    .finally(() => {
+      if (homeFriendActivityRequests.get(key) === request) {
+        homeFriendActivityRequests.delete(key);
+      }
+    });
+
+  setBoundedMemoryRequest(
+    homeFriendActivityRequests,
+    key,
+    request,
+    HOME_FRIEND_PREVIEW_CACHE_LIMIT,
+  );
+  return request;
 }
 
 async function fetchHomeSocialCount(userId, relationship) {
@@ -2254,6 +2453,15 @@ function writeMemoryCache(cache, key, value, ttlMs, limit) {
   }
 }
 
+function setBoundedMemoryRequest(requests, key, request, limit) {
+  requests.delete(key);
+  requests.set(key, request);
+
+  while (requests.size > limit) {
+    requests.delete(requests.keys().next().value);
+  }
+}
+
 function invalidateProfileRead(kind, userId, viewerKey = profileAccountKey) {
   if (!viewerKey) return;
   const key = `${viewerKey}:${userId}:${kind}`;
@@ -2352,8 +2560,10 @@ async function fetchProfileFriendshipStatus(viewerUserId, profileUserId) {
 
 async function fetchProfileFollowingStatus(profileUserId) {
   let csrfRefreshes = 0;
+  const deadlineAt = Date.now() + HTTP_CONFIG.operationDeadlineMs;
 
   while (csrfRefreshes <= 2) {
+    throwIfHttpDeadlineExceeded(deadlineAt);
     const headers = {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -2363,7 +2573,7 @@ async function fetchProfileFollowingStatus(profileUserId) {
       headers["X-CSRF-TOKEN"] = profileMutationCsrfToken;
     }
 
-    const response = await fetch(
+    const { payload, response } = await runHttpAttempt(
       "https://friends.roblox.com/v1/user/following-exists",
       {
         body: JSON.stringify({ targetUserIds: [profileUserId] }),
@@ -2371,6 +2581,12 @@ async function fetchProfileFollowingStatus(profileUserId) {
         headers,
         method: "POST",
       },
+      { attemptTimeoutMs: HTTP_CONFIG.attemptTimeoutMs },
+      deadlineAt,
+      async (attemptResponse) => ({
+        payload: attemptResponse.ok ? await attemptResponse.json() : null,
+        response: attemptResponse,
+      }),
     );
 
     if (response.status === 403) {
@@ -2391,7 +2607,6 @@ async function fetchProfileFollowingStatus(profileUserId) {
       );
     }
 
-    const payload = await response.json();
     const following = Array.isArray(payload?.followings)
       ? payload.followings.find(
           (entry) => Number(entry?.userId) === profileUserId,
@@ -3205,8 +3420,10 @@ async function mutateProfileRelationship(userId, action, sender) {
 
   let csrfRefreshes = 0;
   let transientAttempts = 0;
+  const deadlineAt = Date.now() + HTTP_CONFIG.operationDeadlineMs;
 
   while (transientAttempts <= SERVER_BROWSER_CONFIG.maxRetries) {
+    throwIfHttpDeadlineExceeded(deadlineAt);
     const currentUserId = await fetchAuthenticatedUserId();
 
     if (currentUserId !== authenticatedUserId) {
@@ -3223,13 +3440,28 @@ async function mutateProfileRelationship(userId, action, sender) {
     }
 
     let response;
+    let responseText = "";
 
     try {
-      response = await fetch(
+      const result = await runHttpAttempt(
         `https://friends.roblox.com/v1/users/${userId}/${action}`,
         { credentials: "include", headers, method: "POST" },
+        { attemptTimeoutMs: HTTP_CONFIG.attemptTimeoutMs },
+        deadlineAt,
+        async (attemptResponse) => ({
+          response: attemptResponse,
+          text: await attemptResponse.text(),
+        }),
       );
+      response = result.response;
+      responseText = result.text;
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.code !== "HTTP_ATTEMPT_TIMEOUT"
+      ) {
+        throw error;
+      }
       if (transientAttempts === SERVER_BROWSER_CONFIG.maxRetries) {
         throw new ApiError(
           "NETWORK_ERROR",
@@ -3238,7 +3470,11 @@ async function mutateProfileRelationship(userId, action, sender) {
         );
       }
 
-      await delay(getBackoffDelay(transientAttempts));
+      await waitForHttpRetry(
+        getBackoffDelay(transientAttempts),
+        deadlineAt,
+        null,
+      );
       transientAttempts += 1;
       continue;
     }
@@ -3258,7 +3494,7 @@ async function mutateProfileRelationship(userId, action, sender) {
     }
 
     if (response.ok) {
-      const text = await response.text();
+      const text = responseText;
 
       if (text) {
         let payload;
@@ -3292,7 +3528,12 @@ async function mutateProfileRelationship(userId, action, sender) {
       (response.status === 429 || response.status >= 500) &&
       transientAttempts < SERVER_BROWSER_CONFIG.maxRetries
     ) {
-      await delay(getRetryDelay(response, transientAttempts));
+      await waitForHttpRetry(
+        getRetryDelay(response, transientAttempts),
+        deadlineAt,
+        null,
+        response.status,
+      );
       transientAttempts += 1;
       continue;
     }
@@ -3581,7 +3822,7 @@ async function getServerRegion(placeId, jobId, tabId) {
     timestamp: Date.now(),
   };
 
-  await writeLocalCache({
+  await writeRegionCacheBatch({
     [getCacheKey(jobId)]: cacheEntry,
   });
 
@@ -3601,6 +3842,7 @@ async function fetchJoinPayloadWithRetry(
   operationId = null,
 ) {
   let lastPayload = null;
+  const deadlineAt = Date.now() + HTTP_CONFIG.operationDeadlineMs;
 
   for (
     let attempt = 0;
@@ -3608,7 +3850,8 @@ async function fetchJoinPayloadWithRetry(
     attempt += 1
   ) {
     throwIfAnalysisAborted(signal);
-    await waitForRegionCheckSlot(signal);
+    throwIfHttpDeadlineExceeded(deadlineAt);
+    await waitForRegionCheckSlot(signal, deadlineAt);
     throwIfAnalysisAborted(signal);
 
     const response = await executeJoinRequestInPage(
@@ -3623,7 +3866,7 @@ async function fetchJoinPayloadWithRetry(
       throw createAnalysisCancellationError();
     }
 
-    if (response.networkError) {
+    if (response.networkError || response.timedOut) {
       if (attempt === SERVER_BROWSER_CONFIG.maxRetries) {
         throw new ApiError(
           "NETWORK_ERROR",
@@ -3632,7 +3875,11 @@ async function fetchJoinPayloadWithRetry(
         );
       }
 
-      await abortableDelay(getBackoffDelay(attempt), signal);
+      await waitForHttpRetry(
+        getBackoffDelay(attempt),
+        deadlineAt,
+        signal,
+      );
       continue;
     }
 
@@ -3651,9 +3898,11 @@ async function fetchJoinPayloadWithRetry(
         );
       }
 
-      await abortableDelay(
+      await waitForHttpRetry(
         getRetryDelayFromHeader(response.retryAfter, attempt),
+        deadlineAt,
         signal,
+        response.httpStatus,
       );
       continue;
     }
@@ -3695,7 +3944,11 @@ async function fetchJoinPayloadWithRetry(
     }
 
     registerRegionRateLimit(null);
-    await abortableDelay(getBackoffDelay(attempt), signal);
+    await waitForHttpRetry(
+      getBackoffDelay(attempt),
+      deadlineAt,
+      signal,
+    );
   }
 
   return lastPayload;
@@ -3712,10 +3965,20 @@ async function executeJoinRequestInPage(
 
   try {
     const results = await chrome.scripting.executeScript({
-      args: [placeId, jobId, operationId],
-      func: async (requestPlaceId, requestJobId, requestOperationId) => {
+      args: [placeId, jobId, operationId, HTTP_CONFIG.attemptTimeoutMs],
+      func: async (
+        requestPlaceId,
+        requestJobId,
+        requestOperationId,
+        attemptTimeoutMs,
+      ) => {
         const controller = new AbortController();
         let controllers = null;
+        let timedOut = false;
+        const timeoutId = setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, attemptTimeoutMs);
 
         if (requestOperationId) {
           const registry =
@@ -3810,11 +4073,13 @@ async function executeJoinRequestInPage(
           };
         } catch (error) {
           return {
-            aborted: controller.signal.aborted,
+            aborted: controller.signal.aborted && !timedOut,
             networkError:
               error instanceof Error ? error.message : "Unknown fetch error",
+            timedOut,
           };
         } finally {
+          clearTimeout(timeoutId);
           if (requestOperationId && controllers) {
             controllers.delete(controller);
 
@@ -3899,7 +4164,9 @@ async function getDataCenterLocation(dataCenterId, address) {
 
 async function readCachedDataCenterLocation(dataCenterId, signal = null) {
   const key = getDataCenterLocationCacheKey(dataCenterId);
-  const stored = await chrome.storage.local.get(key);
+  let stored;
+
+  stored = await optionalStorageOperation(chrome.storage.local.get(key), {});
   const entry = stored[key];
 
   if (
@@ -3911,7 +4178,7 @@ async function readCachedDataCenterLocation(dataCenterId, signal = null) {
   ) {
     if (entry) {
       throwIfAnalysisAborted(signal);
-      await chrome.storage.local.remove(key);
+      chrome.storage.local.remove(key).catch(() => {});
     }
 
     return { hit: false, location: null };
@@ -3930,7 +4197,7 @@ async function writeCachedDataCenterLocation(
   location,
   ttlMs,
 ) {
-  await writeLocalCache({
+  await writePersistentCache({
     [getDataCenterLocationCacheKey(dataCenterId)]: {
       cacheVersion: DATA_CENTER_LOCATION_CACHE_VERSION,
       dataCenterId,
@@ -3971,130 +4238,14 @@ async function getIpLocation(address) {
 }
 
 async function fetchIpLocation(address) {
-  const url = new URL(`https://ipwho.is/${encodeURIComponent(address)}`);
-  url.searchParams.set(
-    "fields",
-    [
-      "success",
-      "message",
-      "ip",
-      "continent",
-      "country",
-      "country_code",
-      "region",
-      "city",
-      "latitude",
-      "longitude",
-    ].join(","),
-  );
-  url.searchParams.set("lang", "es");
-
-  for (
-    let attempt = 0;
-    attempt <= SERVER_BROWSER_CONFIG.geolocationMaxRetries;
-    attempt += 1
-  ) {
-    if (Date.now() < geolocationBlockedUntil) {
-      return null;
-    }
-
-    await waitForGeolocationSlot();
-
-    if (Date.now() < geolocationBlockedUntil) {
-      return null;
-    }
-
-    let response;
-
-    try {
-      response = await fetch(url.href, {
-        credentials: "omit",
-        headers: { Accept: "application/json" },
-        referrerPolicy: "no-referrer",
-      });
-    } catch {
-      if (attempt < SERVER_BROWSER_CONFIG.geolocationMaxRetries) {
-        await delay(getBackoffDelay(attempt));
-        continue;
-      }
-
-      await writeCachedGeolocation(
-        address,
-        null,
-        SERVER_BROWSER_CONFIG.geolocationErrorTtlMs,
-      );
-      return null;
-    }
-
-    if (response.status === 429) {
-      geolocationBlockedUntil =
-        Date.now() +
-        getRetryAfterDurationMs(
-          response.headers.get("Retry-After"),
-          24 * 60 * 60 * 1000,
-        );
-      await writeCachedGeolocation(
-        address,
-        null,
-        SERVER_BROWSER_CONFIG.geolocationErrorTtlMs,
-      );
-      return null;
-    }
-
-    if (response.status >= 500) {
-      if (attempt < SERVER_BROWSER_CONFIG.geolocationMaxRetries) {
-        await delay(getBackoffDelay(attempt));
-        continue;
-      }
-
-      await writeCachedGeolocation(
-        address,
-        null,
-        SERVER_BROWSER_CONFIG.geolocationErrorTtlMs,
-      );
-      return null;
-    }
-
-    if (!response.ok) {
-      await writeCachedGeolocation(
-        address,
-        null,
-        SERVER_BROWSER_CONFIG.geolocationErrorTtlMs,
-      );
-      return null;
-    }
-
-    let payload;
-
-    try {
-      payload = await response.json();
-    } catch {
-      await writeCachedGeolocation(
-        address,
-        null,
-        SERVER_BROWSER_CONFIG.geolocationErrorTtlMs,
-      );
-      return null;
-    }
-
-    const location = normalizeIpLocation(payload, address);
-
-    await writeCachedGeolocation(
-      address,
-      location,
-      location
-        ? SERVER_BROWSER_CONFIG.geolocationCacheTtlMs
-        : SERVER_BROWSER_CONFIG.geolocationErrorTtlMs,
-    );
-    return location;
-  }
-
-  return null;
+  return fetchIpLocationForAnalysis(address, null);
 }
 
 async function readCachedGeolocation(address, signal = null) {
   const key = getGeolocationCacheKey(address);
-  const stored = await chrome.storage.local.get(key);
+  let stored;
+
+  stored = await optionalStorageOperation(chrome.storage.local.get(key), {});
   const entry = stored[key];
 
   if (
@@ -4106,7 +4257,7 @@ async function readCachedGeolocation(address, signal = null) {
   ) {
     if (entry) {
       throwIfAnalysisAborted(signal);
-      await chrome.storage.local.remove(key);
+      chrome.storage.local.remove(key).catch(() => {});
     }
 
     return { hit: false, location: null };
@@ -4121,7 +4272,7 @@ async function readCachedGeolocation(address, signal = null) {
 }
 
 async function writeCachedGeolocation(address, location, ttlMs) {
-  await writeLocalCache({
+  await writePersistentCache({
     [getGeolocationCacheKey(address)]: {
       address,
       cacheVersion: GEOLOCATION_CACHE_VERSION,
@@ -4161,14 +4312,18 @@ function normalizeIpLocation(payload, requestedAddress, requireSuccess = true) {
     : null;
 }
 
-function waitForGeolocationSlot(signal = null) {
+function waitForGeolocationSlot(signal = null, deadlineAt = null) {
   const interval =
     1000 / SERVER_BROWSER_CONFIG.geolocationRequestsPerSecond;
 
   const scheduled = geolocationGate.then(async () => {
+    await throttleStateRestore;
     const waitTime = Math.max(0, nextGeolocationCheckAt - Date.now());
 
     if (waitTime > 0) {
+      if (deadlineAt !== null && waitTime >= deadlineAt - Date.now()) {
+        throw createHttpDeadlineError();
+      }
       await abortableDelay(waitTime, signal);
     }
 
@@ -4185,35 +4340,58 @@ function looksRateLimited(payload) {
 }
 
 async function fetchJsonWithRetry(url, options, beforeAttempt = null) {
+  const { httpPolicy: policyOverrides = {}, ...fetchOptions } = options || {};
+  const policy = getHttpReadPolicy(url, fetchOptions, policyOverrides);
+  const deadlineAt = Date.now() + policy.operationDeadlineMs;
   let lastError;
-  const signal = options?.signal || null;
+  const signal = fetchOptions.signal || null;
 
-  for (
-    let attempt = 0;
-    attempt <= SERVER_BROWSER_CONFIG.maxRetries;
-    attempt += 1
-  ) {
+  for (let attempt = 0; attempt <= policy.maxRetries; attempt += 1) {
     try {
       throwIfAnalysisAborted(signal);
+      throwIfHttpDeadlineExceeded(deadlineAt);
 
       if (beforeAttempt) {
         await beforeAttempt();
+        throwIfHttpDeadlineExceeded(deadlineAt);
       }
 
-      const response = await fetch(url, options);
+      const { response, text } = await runHttpAttempt(
+        url,
+        fetchOptions,
+        policy,
+        deadlineAt,
+        async (attemptResponse) => ({
+          response: attemptResponse,
+          text: await attemptResponse.text(),
+        }),
+      );
 
-      if (response.status === 429 || response.status >= 500) {
-        if (attempt === SERVER_BROWSER_CONFIG.maxRetries) {
+      if (policy.retryableStatuses.has(response.status)) {
+        const retryAfterMs = parseRetryAfterMs(
+          response.headers.get("Retry-After"),
+        );
+
+        if (retryAfterMs !== null) {
+          registerHttpOriginCooldown(url, retryAfterMs);
+        }
+
+        if (attempt === policy.maxRetries) {
           throw new ApiError(
             response.status === 429 ? "RATE_LIMITED" : "ROBLOX_UNAVAILABLE",
             response.status === 429
               ? "Roblox limitó temporalmente las solicitudes."
               : "La API de Roblox no está disponible temporalmente.",
-            { httpStatus: response.status },
+            { httpStatus: response.status, retryAfterMs },
           );
         }
 
-        await abortableDelay(getRetryDelay(response, attempt), signal);
+        await waitForHttpRetry(
+          retryAfterMs ?? getBackoffDelay(attempt),
+          deadlineAt,
+          signal,
+          response.status,
+        );
         continue;
       }
 
@@ -4229,8 +4407,6 @@ async function fetchJsonWithRetry(url, options, beforeAttempt = null) {
         );
       }
 
-      const text = await response.text();
-
       try {
         return JSON.parse(text);
       } catch {
@@ -4245,16 +4421,33 @@ async function fetchJsonWithRetry(url, options, beforeAttempt = null) {
       }
 
       if (error instanceof ApiError) {
+        if (
+          (error.code === "HTTP_ATTEMPT_TIMEOUT" ||
+            error.code === "NETWORK_ERROR") &&
+          attempt < policy.maxRetries
+        ) {
+          lastError = error;
+          await waitForHttpRetry(
+            getBackoffDelay(attempt),
+            deadlineAt,
+            signal,
+          );
+          continue;
+        }
         throw error;
       }
 
       lastError = error;
 
-      if (attempt === SERVER_BROWSER_CONFIG.maxRetries) {
+      if (attempt === policy.maxRetries) {
         break;
       }
 
-      await abortableDelay(getBackoffDelay(attempt), signal);
+      await waitForHttpRetry(
+        getBackoffDelay(attempt),
+        deadlineAt,
+        signal,
+      );
     }
   }
 
@@ -4265,6 +4458,189 @@ async function fetchJsonWithRetry(url, options, beforeAttempt = null) {
   );
 }
 
+function getHttpReadPolicy(url, options, overrides) {
+  const parsed = new URL(url);
+  const method = String(options?.method || "GET").toUpperCase();
+  const endpointRetries =
+    parsed.hostname === "thumbnails.roblox.com" ? 2 : method === "GET" ? 3 : 2;
+
+  return {
+    attemptTimeoutMs: clampInteger(
+      overrides.attemptTimeoutMs,
+      1_000,
+      60_000,
+      HTTP_CONFIG.attemptTimeoutMs,
+    ),
+    maxRetries: clampInteger(overrides.maxRetries, 0, 5, endpointRetries),
+    operationDeadlineMs: clampInteger(
+      overrides.operationDeadlineMs,
+      2_000,
+      120_000,
+      HTTP_CONFIG.operationDeadlineMs,
+    ),
+    retryableStatuses: HTTP_CONFIG.retryableStatuses,
+  };
+}
+
+async function runHttpAttempt(
+  url,
+  options,
+  policy,
+  deadlineAt,
+  consume = (response) => response,
+) {
+  const parsed = new URL(url);
+  const signal = options?.signal || null;
+  throwIfAnalysisAborted(signal);
+  throwIfHttpDeadlineExceeded(deadlineAt);
+  const release = await acquireHttpOriginSlot(parsed.origin, signal, deadlineAt);
+  const budget = getHttpOriginBudget(parsed.origin);
+  const controller = new AbortController();
+  const handleAbort = () => controller.abort(signal?.reason);
+  let timedOut = false;
+  let timeoutId = null;
+
+  if (signal) signal.addEventListener("abort", handleAbort, { once: true });
+  if (signal?.aborted) handleAbort();
+
+  try {
+    const cooldownMs = Math.max(0, budget.cooldownUntil - Date.now());
+    if (cooldownMs) {
+      await waitForHttpRetry(cooldownMs, deadlineAt, signal);
+    }
+
+    const remainingMs = deadlineAt - Date.now();
+    throwIfHttpDeadlineExceeded(deadlineAt);
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort("attempt-timeout");
+    }, Math.min(policy.attemptTimeoutMs, remainingMs));
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return await consume(response);
+  } catch (error) {
+    if (signal?.aborted) {
+      throw createAnalysisCancellationError();
+    }
+    if (timedOut) {
+      throw new ApiError(
+        "HTTP_ATTEMPT_TIMEOUT",
+        "La API tardó demasiado en responder.",
+      );
+    }
+    throw error;
+  } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+    if (signal) signal.removeEventListener("abort", handleAbort);
+    release();
+  }
+}
+
+function getHttpOriginBudget(origin) {
+  let budget = httpOriginBudgets.get(origin);
+
+  if (!budget) {
+    budget = {
+      active: 0,
+      cooldownUntil: 0,
+      limit:
+        HTTP_ORIGIN_CONCURRENCY[origin] || HTTP_CONFIG.defaultOriginConcurrency,
+      queue: [],
+    };
+    httpOriginBudgets.set(origin, budget);
+  }
+
+  return budget;
+}
+
+function acquireHttpOriginSlot(origin, signal, deadlineAt) {
+  const budget = getHttpOriginBudget(origin);
+
+  if (budget.active < budget.limit) {
+    budget.active += 1;
+    return Promise.resolve(() => releaseHttpOriginSlot(budget));
+  }
+
+  return new Promise((resolve, reject) => {
+    const queued = { resolve, reject, signal, timer: null };
+    const remove = () => {
+      const index = budget.queue.indexOf(queued);
+      if (index >= 0) budget.queue.splice(index, 1);
+    };
+    const fail = (error) => {
+      remove();
+      if (queued.timer !== null) clearTimeout(queued.timer);
+      signal?.removeEventListener("abort", handleAbort);
+      reject(error);
+    };
+    const handleAbort = () => fail(createAnalysisCancellationError());
+    const remainingMs = deadlineAt - Date.now();
+
+    if (remainingMs <= 0) {
+      reject(createHttpDeadlineError());
+      return;
+    }
+
+    queued.timer = setTimeout(() => fail(createHttpDeadlineError()), remainingMs);
+    if (signal) signal.addEventListener("abort", handleAbort, { once: true });
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
+    queued.start = () => {
+      if (queued.timer !== null) clearTimeout(queued.timer);
+      signal?.removeEventListener("abort", handleAbort);
+      resolve(() => releaseHttpOriginSlot(budget));
+    };
+    budget.queue.push(queued);
+  });
+}
+
+function releaseHttpOriginSlot(budget) {
+  const next = budget.queue.shift();
+
+  if (next) next.start();
+  else budget.active = Math.max(0, budget.active - 1);
+}
+
+function registerHttpOriginCooldown(url, retryAfterMs) {
+  const origin = new URL(url).origin;
+  const budget = getHttpOriginBudget(origin);
+  budget.cooldownUntil = Math.max(
+    budget.cooldownUntil,
+    Date.now() + retryAfterMs,
+  );
+}
+
+async function waitForHttpRetry(delayMs, deadlineAt, signal, status = null) {
+  const remainingMs = deadlineAt - Date.now();
+
+  if (delayMs >= remainingMs) {
+    throw new ApiError(
+      status === 429 ? "RATE_LIMITED" : "HTTP_DEADLINE_EXCEEDED",
+      status === 429
+        ? "Roblox indicó un tiempo de espera mayor al plazo de la operación."
+        : "La operación de red excedió su plazo total.",
+      { httpStatus: status, retryAfterMs: delayMs },
+    );
+  }
+
+  await abortableDelay(delayMs, signal);
+}
+
+function throwIfHttpDeadlineExceeded(deadlineAt) {
+  if (Date.now() >= deadlineAt) throw createHttpDeadlineError();
+}
+
+function createHttpDeadlineError() {
+  return new ApiError(
+    "HTTP_DEADLINE_EXCEEDED",
+    "La operación de red excedió su plazo total.",
+  );
+}
+
 function getRetryDelay(response, attempt) {
   const retryAfter = response.headers.get("Retry-After");
 
@@ -4272,22 +4648,21 @@ function getRetryDelay(response, attempt) {
 }
 
 function getRetryDelayFromHeader(retryAfter, attempt) {
+  return parseRetryAfterMs(retryAfter) ?? getBackoffDelay(attempt);
+}
 
-  if (retryAfter) {
-    const seconds = Number(retryAfter);
+function parseRetryAfterMs(retryAfter) {
+  if (typeof retryAfter !== "string" || !retryAfter.trim()) return null;
+  const seconds = Number(retryAfter);
 
-    if (Number.isFinite(seconds)) {
-      return Math.min(Math.max(seconds * 1000, 0), 30_000);
-    }
-
-    const retryDate = Date.parse(retryAfter);
-
-    if (Number.isFinite(retryDate)) {
-      return Math.min(Math.max(retryDate - Date.now(), 0), 30_000);
-    }
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return seconds * 1000;
   }
 
-  return getBackoffDelay(attempt);
+  const retryDate = Date.parse(retryAfter);
+  return Number.isFinite(retryDate)
+    ? Math.max(retryDate - Date.now(), 0)
+    : null;
 }
 
 function getRetryAfterDurationMs(retryAfter, fallbackMs) {
@@ -4314,20 +4689,25 @@ function getRetryAfterDurationMs(retryAfter, fallbackMs) {
 }
 
 function getBackoffDelay(attempt) {
-  const exponential =
-    SERVER_BROWSER_CONFIG.retryBaseDelayMs * 2 ** Math.max(attempt, 0);
-  const jitter = Math.floor(Math.random() * 250);
-  return Math.min(exponential + jitter, 15_000);
+  const ceiling = Math.min(
+    SERVER_BROWSER_CONFIG.retryBaseDelayMs * 2 ** Math.max(attempt + 1, 1),
+    15_000,
+  );
+  return Math.floor(Math.random() * ceiling);
 }
 
-function waitForRegionCheckSlot(signal = null) {
+function waitForRegionCheckSlot(signal = null, deadlineAt = null) {
   const scheduled = regionCheckGate.then(async () => {
+    await throttleStateRestore;
     const waitTime = Math.max(
       0,
       Math.max(nextRegionCheckAt, regionRateLimitedUntil) - Date.now(),
     );
 
     if (waitTime > 0) {
+      if (deadlineAt !== null && waitTime >= deadlineAt - Date.now()) {
+        throw createHttpDeadlineError();
+      }
       await abortableDelay(waitTime, signal);
     }
 
@@ -4339,6 +4719,7 @@ function waitForRegionCheckSlot(signal = null) {
       currentRegionChecksPerSecond += 1;
       nextRegionRecoveryAt =
         Date.now() + SERVER_BROWSER_CONFIG.regionRateRecoveryStepMs;
+      persistCriticalThrottleState();
     }
 
     const interval = 1000 / currentRegionChecksPerSecond;
@@ -4368,12 +4749,76 @@ function registerRegionRateLimit(retryAfter) {
   );
   nextRegionRecoveryAt =
     regionRateLimitedUntil + SERVER_BROWSER_CONFIG.regionRateRecoveryStepMs;
+  persistCriticalThrottleState();
+}
+
+async function restoreCriticalThrottleState() {
+  const sessionStorage = getSessionStorageArea();
+  if (!sessionStorage) return;
+
+  try {
+    const stored = await optionalStorageOperation(
+      sessionStorage.get(THROTTLE_STATE_KEY),
+      {},
+    );
+    const state = stored[THROTTLE_STATE_KEY];
+
+    if (state?.version !== THROTTLE_STATE_VERSION) return;
+    const now = Date.now();
+    geolocationBlockedUntil = Math.max(
+      geolocationBlockedUntil,
+      Number.isFinite(state.geolocationBlockedUntil)
+        ? state.geolocationBlockedUntil
+        : 0,
+    );
+    regionRateLimitedUntil = Math.max(
+      regionRateLimitedUntil,
+      Number.isFinite(state.regionRateLimitedUntil)
+        ? state.regionRateLimitedUntil
+        : 0,
+    );
+    currentRegionChecksPerSecond = clampInteger(
+      state.currentRegionChecksPerSecond,
+      SERVER_BROWSER_CONFIG.minimumRegionChecksPerSecond,
+      SERVER_BROWSER_CONFIG.regionChecksPerSecond,
+      currentRegionChecksPerSecond,
+    );
+    nextRegionRecoveryAt = Math.max(
+      now,
+      Number.isFinite(state.nextRegionRecoveryAt)
+        ? state.nextRegionRecoveryAt
+        : now,
+    );
+  } catch {
+    // Suspension-safe throttle state is best effort.
+  }
+}
+
+function persistCriticalThrottleState() {
+  const sessionStorage = getSessionStorageArea();
+  if (!sessionStorage) return;
+
+  const state = {
+    currentRegionChecksPerSecond,
+    geolocationBlockedUntil,
+    nextRegionRecoveryAt,
+    regionRateLimitedUntil,
+    version: THROTTLE_STATE_VERSION,
+  };
+  const write = () => sessionStorage.set({ [THROTTLE_STATE_KEY]: state });
+  throttleStateWrite = throttleStateWrite.then(write, write).catch(() => {});
 }
 
 async function readCachedRegion(placeId, jobId) {
   const key = getCacheKey(jobId);
-  const stored = await chrome.storage.local.get(key);
-  const entry = stored[key];
+  const memoryEntry = readMemoryCache(regionMemoryCache, key);
+  let entry = memoryEntry;
+  const sessionStorage = getSessionStorageArea();
+
+  if (entry === undefined && sessionStorage) {
+    const stored = await optionalStorageOperation(sessionStorage.get(key), {});
+    entry = stored[key];
+  }
 
   if (
     !entry ||
@@ -4384,11 +4829,23 @@ async function readCachedRegion(placeId, jobId) {
     Date.now() - entry.timestamp > SERVER_BROWSER_CONFIG.cacheTtlMs
   ) {
     if (entry) {
-      await chrome.storage.local.remove(key);
+      regionMemoryCache.delete(key);
+      sessionStorage?.remove(key).catch(() => {});
     }
 
     return null;
   }
+
+  writeMemoryCache(
+    regionMemoryCache,
+    key,
+    entry,
+    Math.max(
+      1,
+      SERVER_BROWSER_CONFIG.cacheTtlMs - (Date.now() - entry.timestamp),
+    ),
+    REGION_MEMORY_CACHE_LIMIT,
+  );
 
   return {
     dataCenterId: toNullableInteger(entry.dataCenterId),
@@ -4413,35 +4870,10 @@ async function maybeCleanupExpiredCache() {
 
 async function cleanupExpiredCache() {
   lastCacheCleanupAt = Date.now();
-  const stored = await chrome.storage.local.get(null);
-  const expiredKeys = Object.entries(stored)
-    .filter(([key, value]) => {
-      if (key.startsWith(CACHE_KEY_PREFIX)) {
-        return (
-          !value ||
-          !Number.isFinite(value.timestamp) ||
-          Date.now() - value.timestamp > SERVER_BROWSER_CONFIG.cacheTtlMs
-        );
-      }
-
-      if (
-        key.startsWith(DATA_CENTER_LOCATION_CACHE_KEY_PREFIX) ||
-        key.startsWith(GEOLOCATION_CACHE_KEY_PREFIX)
-      ) {
-        return (
-          !value ||
-          !Number.isFinite(value.expiresAt) ||
-          Date.now() >= value.expiresAt
-        );
-      }
-
-      return false;
-    })
-    .map(([key]) => key);
-
-  if (expiredKeys.length) {
-    await chrome.storage.local.remove(expiredKeys);
-  }
+  await Promise.allSettled([
+    cleanupIndexedCache(getSessionStorageArea(), SESSION_REGION_CACHE_INDEX_KEY),
+    cleanupIndexedCache(chrome.storage.local, LOCAL_CACHE_INDEX_KEY),
+  ]);
 }
 
 function getCacheKey(jobId) {
@@ -4456,12 +4888,164 @@ function getDataCenterLocationCacheKey(dataCenterId) {
   return `${DATA_CENTER_LOCATION_CACHE_KEY_PREFIX}${dataCenterId}`;
 }
 
-async function writeLocalCache(values) {
+function getSessionStorageArea() {
+  return chrome.storage?.session || null;
+}
+
+async function writeRegionCacheBatch(values) {
+  const now = Date.now();
+
+  for (const [key, entry] of Object.entries(values)) {
+    const ttlMs = Number.isFinite(entry?.timestamp)
+      ? Math.max(
+          1,
+          SERVER_BROWSER_CONFIG.cacheTtlMs - (now - entry.timestamp),
+        )
+      : SERVER_BROWSER_CONFIG.cacheTtlMs;
+    writeMemoryCache(
+      regionMemoryCache,
+      key,
+      entry,
+      ttlMs,
+      REGION_MEMORY_CACHE_LIMIT,
+    );
+  }
+
+  const sessionStorage = getSessionStorageArea();
+  if (!sessionStorage) return;
+
   try {
-    await chrome.storage.local.set(values);
+    const wrote = await optionalStorageOperation(
+      sessionStorage.set(values).then(() => true),
+      false,
+    );
+    if (!wrote) return;
+    updateCacheIndex(
+      sessionStorage,
+      SESSION_REGION_CACHE_INDEX_KEY,
+      Object.fromEntries(
+        Object.entries(values).map(([key, entry]) => [
+          key,
+          (Number(entry?.timestamp) || now) + SERVER_BROWSER_CONFIG.cacheTtlMs,
+        ]),
+      ),
+      "session",
+    ).catch(() => {});
   } catch {
     // Cache failures must never hide an otherwise valid public server.
   }
+}
+
+async function writePersistentCache(values) {
+  try {
+    const wrote = await optionalStorageOperation(
+      chrome.storage.local.set(values).then(() => true),
+      false,
+    );
+    if (!wrote) return;
+    updateCacheIndex(
+      chrome.storage.local,
+      LOCAL_CACHE_INDEX_KEY,
+      Object.fromEntries(
+        Object.entries(values).map(([key, entry]) => [
+          key,
+          Number(entry?.expiresAt) || Date.now(),
+        ]),
+      ),
+      "local",
+    ).catch(() => {});
+  } catch {
+    // Persistent geolocation is an optimization, never a prerequisite.
+  }
+}
+
+function updateCacheIndex(storageArea, indexKey, additions, scope) {
+  const run = async () => {
+    const stored = await optionalStorageOperation(storageArea.get(indexKey), {});
+    const current = stored[indexKey];
+    const entries =
+      current?.version === CACHE_INDEX_VERSION &&
+      current.entries &&
+      typeof current.entries === "object"
+        ? current.entries
+        : {};
+    await optionalStorageOperation(
+      storageArea.set({
+        [indexKey]: {
+          entries: { ...entries, ...additions },
+          version: CACHE_INDEX_VERSION,
+        },
+      }),
+      null,
+    );
+  };
+  const previous = scope === "session" ? sessionCacheIndexWrite : localCacheIndexWrite;
+  const scheduled = previous.then(run, run);
+
+  if (scope === "session") sessionCacheIndexWrite = scheduled.catch(() => {});
+  else localCacheIndexWrite = scheduled.catch(() => {});
+  return scheduled;
+}
+
+async function cleanupIndexedCache(storageArea, indexKey) {
+  if (!storageArea) return;
+  let stored;
+
+  try {
+    stored = await optionalStorageOperation(storageArea.get(indexKey), {});
+  } catch {
+    return;
+  }
+
+  const current = stored[indexKey];
+  if (
+    current?.version !== CACHE_INDEX_VERSION ||
+    !current.entries ||
+    typeof current.entries !== "object"
+  ) {
+    return;
+  }
+
+  const now = Date.now();
+  const liveEntries = {};
+  const expiredKeys = [];
+
+  for (const [key, expiresAt] of Object.entries(current.entries)) {
+    if (!Number.isFinite(expiresAt) || expiresAt <= now) expiredKeys.push(key);
+    else liveEntries[key] = expiresAt;
+  }
+
+  try {
+    if (expiredKeys.length) {
+      await optionalStorageOperation(storageArea.remove(expiredKeys), null);
+    }
+    await optionalStorageOperation(
+      storageArea.set({
+        [indexKey]: { entries: liveEntries, version: CACHE_INDEX_VERSION },
+      }),
+      null,
+    );
+  } catch {
+    // Cleanup is opportunistic and must not block feature work.
+  }
+}
+
+function optionalStorageOperation(operation, fallback, timeoutMs = 500) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer = null;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) clearTimeout(timer);
+      resolve(value);
+    };
+    timer = setTimeout(() => finish(fallback), timeoutMs);
+    Promise.resolve(operation).then(
+      (value) => finish(value),
+      () => finish(fallback),
+    );
+  });
 }
 
 function normalizeIpAddress(value) {

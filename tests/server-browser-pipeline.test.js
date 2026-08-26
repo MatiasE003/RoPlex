@@ -115,6 +115,13 @@ function createHarness({ cached, pageCount, serversPerPage }) {
     },
     storage: {
       local: {
+        async get() {
+          return {};
+        },
+        async remove() {},
+        async set() {},
+      },
+      session: {
         async get(keys) {
           if (!Array.isArray(keys)) {
             return {};
