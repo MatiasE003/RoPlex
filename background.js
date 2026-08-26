@@ -1,11 +1,11 @@
 const SERVER_BROWSER_CONFIG = Object.freeze({
+  analysisConcurrentRequests: 20,
   cacheTtlMs: 5 * 60 * 1000,
   geolocationCacheTtlMs: 30 * 24 * 60 * 60 * 1000,
   geolocationErrorTtlMs: 10 * 60 * 1000,
   geolocationMaxRetries: 2,
   geolocationRequestsPerSecond: 10,
   initialRegionChecksPerSecond: 8,
-  maxPages: 20,
   maxRetries: 3,
   minimumRegionChecksPerSecond: 5,
   regionChecksPerSecond: 8,
@@ -67,6 +67,10 @@ const profileFullAvatarCache = new Map();
 const profileFullAvatarRequests = new Map();
 const profileGameEnrichmentCache = new Map();
 const profileGameEnrichmentRequests = new Map();
+const SERVER_ANALYSIS_PORT_NAME = "roblox-server-analysis";
+const SERVER_ANALYSIS_RESULT_CHUNK_SIZE = 24;
+const SERVER_ANALYSIS_RESULT_FLUSH_MS = 120;
+const serverAnalysisOperations = new Map();
 
 class ApiError extends Error {
   constructor(code, message, details = {}) {
@@ -83,6 +87,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
 
   return true;
+});
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== SERVER_ANALYSIS_PORT_NAME) {
+    return;
+  }
+
+  let activeOperation = null;
+
+  port.onMessage.addListener((message) => {
+    if (message?.type === "START_ANALYSIS") {
+      if (activeOperation) {
+        cancelServerAnalysis(activeOperation, false);
+      }
+
+      try {
+        activeOperation = createServerAnalysisOperation(message, port);
+      } catch (error) {
+        postServerAnalysisMessage(port, {
+          error: serializeError(error),
+          operationId:
+            typeof message?.operationId === "string"
+              ? message.operationId
+              : null,
+          type: "ANALYSIS_ERROR",
+        });
+        return;
+      }
+
+      runServerAnalysis(activeOperation).finally(() => {
+        if (activeOperation?.finished) {
+          activeOperation = null;
+        }
+      });
+      return;
+    }
+
+    if (
+      message?.type === "CANCEL_ANALYSIS" &&
+      activeOperation?.operationId === message.operationId
+    ) {
+      cancelServerAnalysis(activeOperation, true);
+    }
+  });
+
+  port.onDisconnect.addListener(() => {
+    if (activeOperation) {
+      cancelServerAnalysis(activeOperation, false);
+      activeOperation = null;
+    }
+  });
 });
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -213,7 +268,6 @@ async function handleMessage(message, sender) {
     await maybeCleanupExpiredCache();
     return fetchPublicServers(
       placeId,
-      message.maxPages,
       parsePublicServerSortOrder(message.sortOrder),
     );
   }
@@ -261,6 +315,756 @@ async function deleteInventoryBadges(badgeIds, sender) {
   }
 
   return { deletedBadgeIds, failures };
+}
+
+function createServerAnalysisOperation(message, port) {
+  const operationId = parseServerAnalysisOperationId(message.operationId);
+  const placeId = parsePlaceId(message.placeId);
+  const tabId = getRobloxTabId(port.sender);
+  const existingOperation = serverAnalysisOperations.get(operationId);
+
+  if (existingOperation) {
+    cancelServerAnalysis(existingOperation, false);
+  }
+
+  const operation = {
+    activeTasks: 0,
+    cachedCount: 0,
+    controller: new AbortController(),
+    dataCenterLocationRequests: new Map(),
+    failedCount: 0,
+    failureBuffer: [],
+    finished: false,
+    flushTimer: null,
+    ipLocationRequests: new Map(),
+    operationId,
+    pagePromises: [],
+    pagesFetched: 0,
+    paginationComplete: false,
+    placeId,
+    port,
+    processedCount: 0,
+    queue: [],
+    requestKeys: new Set(),
+    resultBuffer: [],
+    sortOrder: parsePublicServerSortOrder(message.sortOrder),
+    tabId,
+    totalCount: 0,
+  };
+
+  serverAnalysisOperations.set(operationId, operation);
+  return operation;
+}
+
+async function runServerAnalysis(operation) {
+  const { signal } = operation.controller;
+
+  postServerAnalysisMessage(operation.port, {
+    limits: {
+      concurrentRequests: SERVER_BROWSER_CONFIG.analysisConcurrentRequests,
+      serversPerPage: SERVER_BROWSER_CONFIG.serversPerPage,
+    },
+    operationId: operation.operationId,
+    type: "ANALYSIS_STARTED",
+  });
+
+  try {
+    await maybeCleanupExpiredCache().catch(() => {});
+    let cursor = null;
+    const requestedCursors = new Set();
+
+    do {
+      throwIfAnalysisAborted(signal);
+      const cursorKey = cursor || "__first_page__";
+
+      if (requestedCursors.has(cursorKey)) {
+        throw new ApiError(
+          "PAGINATION_LOOP",
+          "Roblox repitió un cursor de paginación y se detuvo el análisis para evitar un bucle.",
+        );
+      }
+
+      requestedCursors.add(cursorKey);
+      const page = await fetchPublicServerPage(
+        operation.placeId,
+        cursor,
+        operation.sortOrder,
+        signal,
+      );
+      const pageServers = [];
+
+      page.servers.forEach((server) => {
+        const requestKey = `${operation.placeId}:${server.jobId}`;
+
+        if (!operation.requestKeys.has(requestKey)) {
+          operation.requestKeys.add(requestKey);
+          pageServers.push(server);
+        }
+      });
+
+      operation.pagesFetched += 1;
+      operation.totalCount += pageServers.length;
+      cursor = page.nextPageCursor;
+      postServerAnalysisProgress(operation);
+      const pagePromise = analyzePublicServerPage(operation, pageServers);
+      pagePromise.catch(() => {});
+      operation.pagePromises.push(pagePromise);
+    } while (cursor);
+
+    operation.paginationComplete = true;
+    postServerAnalysisProgress(operation);
+    await Promise.all(operation.pagePromises);
+    throwIfAnalysisAborted(signal);
+    flushServerAnalysisResults(operation);
+    operation.finished = true;
+    postServerAnalysisMessage(operation.port, {
+      ...getServerAnalysisStats(operation),
+      operationId: operation.operationId,
+      type: "ANALYSIS_COMPLETE",
+    });
+  } catch (error) {
+    if (isAnalysisCancellation(error, signal)) {
+      if (!operation.finished) {
+        operation.finished = true;
+        postServerAnalysisMessage(operation.port, {
+          ...getServerAnalysisStats(operation),
+          operationId: operation.operationId,
+          type: "ANALYSIS_CANCELLED",
+        });
+      }
+    } else {
+      cancelServerAnalysis(operation, false);
+      operation.finished = true;
+      postServerAnalysisMessage(operation.port, {
+        error: serializeError(error),
+        operationId: operation.operationId,
+        type: "ANALYSIS_ERROR",
+      });
+    }
+  } finally {
+    if (operation.flushTimer !== null) {
+      clearTimeout(operation.flushTimer);
+      operation.flushTimer = null;
+    }
+
+    if (serverAnalysisOperations.get(operation.operationId) === operation) {
+      serverAnalysisOperations.delete(operation.operationId);
+    }
+  }
+}
+
+async function fetchPublicServerPage(placeId, cursor, sortOrder, signal) {
+  const url = new URL(
+    `https://games.roblox.com/v1/games/${placeId}/servers/Public`,
+  );
+  url.searchParams.set("sortOrder", sortOrder);
+  url.searchParams.set("excludeFullGames", "true");
+  url.searchParams.set("limit", String(SERVER_BROWSER_CONFIG.serversPerPage));
+
+  if (cursor) {
+    url.searchParams.set("cursor", cursor);
+  }
+
+  const payload = await fetchJsonWithRetry(url.href, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+
+  if (!payload || !Array.isArray(payload.data)) {
+    throw new ApiError(
+      "INVALID_SERVER_RESPONSE",
+      "Roblox devolvió una lista de servidores inválida.",
+    );
+  }
+
+  return {
+    nextPageCursor:
+      typeof payload.nextPageCursor === "string" && payload.nextPageCursor
+        ? payload.nextPageCursor
+        : null,
+    servers: payload.data.map(normalizePublicServer).filter(Boolean),
+  };
+}
+
+async function analyzePublicServerPage(operation, publicServers) {
+  if (!publicServers.length) {
+    return;
+  }
+
+  const { signal } = operation.controller;
+  const cachedRegions = await readCachedRegionsBatch(
+    operation.placeId,
+    publicServers,
+    signal,
+  );
+  const cacheWrites = {};
+  const tasks = publicServers.map((server) =>
+    enqueueServerAnalysisTask(operation, async () => {
+      try {
+        const cached = cachedRegions.get(server.jobId);
+        let details;
+
+        if (cached) {
+          const location = await getAnalysisDataCenterLocation(
+            operation,
+            cached.dataCenterId,
+            cached.endpointAddress,
+          );
+          details = { ...cached, cached: true, location };
+          operation.cachedCount += 1;
+        } else {
+          const fresh = await fetchFreshServerRegionForAnalysis(
+            operation,
+            server.jobId,
+          );
+          details = fresh.details;
+          cacheWrites[getCacheKey(server.jobId)] = fresh.cacheEntry;
+        }
+
+        queueServerAnalysisResult(operation, {
+          ...server,
+          location: details.location,
+        });
+      } catch (error) {
+        if (isAnalysisCancellation(error, signal)) {
+          throw error;
+        }
+
+        operation.failedCount += 1;
+        operation.failureBuffer.push({
+          jobId: server.jobId,
+          reason:
+            error?.details?.cause ||
+            error?.message ||
+            "La comprobación regional falló.",
+        });
+      } finally {
+        if (!signal.aborted) {
+          operation.processedCount += 1;
+          scheduleServerAnalysisFlush(operation);
+        }
+      }
+    }),
+  );
+
+  await Promise.all(tasks);
+  throwIfAnalysisAborted(signal);
+
+  if (Object.keys(cacheWrites).length) {
+    await writeLocalCache(cacheWrites);
+  }
+}
+
+function enqueueServerAnalysisTask(operation, task) {
+  const { signal } = operation.controller;
+
+  if (signal.aborted) {
+    return Promise.reject(createAnalysisCancellationError());
+  }
+
+  return new Promise((resolve, reject) => {
+    operation.queue.push({ reject, resolve, task });
+    pumpServerAnalysisQueue(operation);
+  });
+}
+
+function pumpServerAnalysisQueue(operation) {
+  const { signal } = operation.controller;
+
+  if (signal.aborted) {
+    const cancellation = createAnalysisCancellationError();
+    operation.queue.splice(0).forEach(({ reject }) => reject(cancellation));
+    return;
+  }
+
+  while (
+    operation.activeTasks < SERVER_BROWSER_CONFIG.analysisConcurrentRequests &&
+    operation.queue.length
+  ) {
+    const queued = operation.queue.shift();
+    operation.activeTasks += 1;
+
+    Promise.resolve()
+      .then(() => {
+        throwIfAnalysisAborted(signal);
+        return queued.task();
+      })
+      .then(queued.resolve, queued.reject)
+      .finally(() => {
+        operation.activeTasks -= 1;
+        pumpServerAnalysisQueue(operation);
+      });
+  }
+}
+
+async function readCachedRegionsBatch(placeId, servers, signal) {
+  throwIfAnalysisAborted(signal);
+  const keys = servers.map((server) => getCacheKey(server.jobId));
+  let stored;
+
+  try {
+    stored = await chrome.storage.local.get(keys);
+  } catch {
+    return new Map();
+  }
+
+  throwIfAnalysisAborted(signal);
+  const cached = new Map();
+  const expiredKeys = [];
+
+  servers.forEach((server) => {
+    const key = getCacheKey(server.jobId);
+    const entry = stored[key];
+
+    if (
+      entry?.cacheVersion === CACHE_VERSION &&
+      entry.placeId === placeId &&
+      entry.jobId === server.jobId &&
+      Number.isFinite(entry.timestamp) &&
+      Date.now() - entry.timestamp <= SERVER_BROWSER_CONFIG.cacheTtlMs
+    ) {
+      cached.set(server.jobId, {
+        dataCenterId: toNullableInteger(entry.dataCenterId),
+        endpointAddress: normalizeIpAddress(entry.endpointAddress),
+        jobId: server.jobId,
+        placeId,
+        region: normalizeRegion(entry.region),
+        timestamp: entry.timestamp,
+      });
+    } else if (entry) {
+      expiredKeys.push(key);
+    }
+  });
+
+  if (expiredKeys.length && !signal.aborted) {
+    chrome.storage.local.remove(expiredKeys).catch(() => {});
+  }
+
+  return cached;
+}
+
+async function fetchFreshServerRegionForAnalysis(operation, jobId) {
+  const { signal } = operation.controller;
+  const payload = await fetchJoinPayloadWithRetry(
+    operation.placeId,
+    jobId,
+    operation.tabId,
+    signal,
+    operation.operationId,
+  );
+  const joinScript = payload?.joinScript;
+
+  if (!joinScript || typeof joinScript !== "object") {
+    const message = typeof payload?.message === "string" ? payload.message : "";
+    const isUnavailable =
+      payload?.status === 12 ||
+      payload?.status === 22 ||
+      /unable to join|full|shut down|no longer available/i.test(message);
+
+    throw new ApiError(
+      isUnavailable ? "SERVER_UNAVAILABLE" : "INVALID_JOIN_RESPONSE",
+      isUnavailable
+        ? "El servidor ya no está disponible."
+        : "Roblox no devolvió un joinScript válido.",
+      { robloxMessage: message, robloxStatus: payload?.status ?? null },
+    );
+  }
+
+  const region = normalizeRegion(joinScript.GameJoinRegion);
+  const dataCenterId = toNullableInteger(joinScript.DataCenterId);
+  const endpointAddress = normalizeIpAddress(joinScript.UdmuxAddress);
+
+  if (!region && dataCenterId === null) {
+    throw new ApiError(
+      "MISSING_REGION",
+      "Roblox no informó la región ni el datacenter de este servidor.",
+    );
+  }
+
+  const cacheEntry = {
+    cacheVersion: CACHE_VERSION,
+    dataCenterId,
+    endpointAddress,
+    jobId,
+    placeId: operation.placeId,
+    region,
+    timestamp: Date.now(),
+  };
+  const location = await getAnalysisDataCenterLocation(
+    operation,
+    dataCenterId,
+    endpointAddress,
+  );
+
+  throwIfAnalysisAborted(signal);
+  return {
+    cacheEntry,
+    details: { ...cacheEntry, cached: false, location },
+  };
+}
+
+async function getAnalysisDataCenterLocation(
+  operation,
+  dataCenterId,
+  address,
+) {
+  const key = dataCenterId === null ? `ip:${address || "none"}` : dataCenterId;
+  const existing = operation.dataCenterLocationRequests.get(key);
+
+  if (existing) {
+    return existing;
+  }
+
+  const request = (async () => {
+    const { signal } = operation.controller;
+    throwIfAnalysisAborted(signal);
+
+    if (dataCenterId !== null) {
+      const cached = await readCachedDataCenterLocation(dataCenterId, signal);
+      throwIfAnalysisAborted(signal);
+
+      if (cached.hit) {
+        return cached.location;
+      }
+    }
+
+    if (!address) {
+      return null;
+    }
+
+    const location = await getAnalysisIpLocation(operation, address);
+    throwIfAnalysisAborted(signal);
+
+    if (dataCenterId !== null) {
+      await writeCachedDataCenterLocation(
+        dataCenterId,
+        location,
+        location
+          ? SERVER_BROWSER_CONFIG.geolocationCacheTtlMs
+          : SERVER_BROWSER_CONFIG.geolocationErrorTtlMs,
+      );
+    }
+
+    return location;
+  })();
+
+  operation.dataCenterLocationRequests.set(key, request);
+
+  try {
+    return await request;
+  } finally {
+    operation.dataCenterLocationRequests.delete(key);
+  }
+}
+
+async function getAnalysisIpLocation(operation, address) {
+  const existing = operation.ipLocationRequests.get(address);
+
+  if (existing) {
+    return existing;
+  }
+
+  const request = (async () => {
+    const { signal } = operation.controller;
+    throwIfAnalysisAborted(signal);
+    const cached = await readCachedGeolocation(address, signal);
+    throwIfAnalysisAborted(signal);
+
+    if (cached.hit) {
+      return cached.location;
+    }
+
+    if (Date.now() < geolocationBlockedUntil) {
+      return null;
+    }
+
+    return fetchIpLocationForAnalysis(address, signal);
+  })();
+
+  operation.ipLocationRequests.set(address, request);
+
+  try {
+    return await request;
+  } finally {
+    operation.ipLocationRequests.delete(address);
+  }
+}
+
+async function fetchIpLocationForAnalysis(address, signal) {
+  const url = new URL(`https://ipwho.is/${encodeURIComponent(address)}`);
+  url.searchParams.set(
+    "fields",
+    "success,message,ip,continent,country,country_code,region,city,latitude,longitude",
+  );
+  url.searchParams.set("lang", "es");
+
+  for (
+    let attempt = 0;
+    attempt <= SERVER_BROWSER_CONFIG.geolocationMaxRetries;
+    attempt += 1
+  ) {
+    throwIfAnalysisAborted(signal);
+
+    if (Date.now() < geolocationBlockedUntil) {
+      return null;
+    }
+
+    await waitForGeolocationSlot(signal);
+    throwIfAnalysisAborted(signal);
+
+    let response;
+
+    try {
+      response = await fetch(url.href, {
+        credentials: "omit",
+        headers: { Accept: "application/json" },
+        referrerPolicy: "no-referrer",
+        signal,
+      });
+    } catch (error) {
+      if (isAnalysisCancellation(error, signal)) {
+        throw createAnalysisCancellationError();
+      }
+
+      if (attempt < SERVER_BROWSER_CONFIG.geolocationMaxRetries) {
+        await abortableDelay(getBackoffDelay(attempt), signal);
+        continue;
+      }
+
+      throwIfAnalysisAborted(signal);
+      await writeCachedGeolocation(
+        address,
+        null,
+        SERVER_BROWSER_CONFIG.geolocationErrorTtlMs,
+      );
+      return null;
+    }
+
+    if (response.status === 429) {
+      geolocationBlockedUntil =
+        Date.now() +
+        getRetryAfterDurationMs(
+          response.headers.get("Retry-After"),
+          24 * 60 * 60 * 1000,
+        );
+      throwIfAnalysisAborted(signal);
+      await writeCachedGeolocation(
+        address,
+        null,
+        SERVER_BROWSER_CONFIG.geolocationErrorTtlMs,
+      );
+      return null;
+    }
+
+    if (response.status >= 500 && attempt < SERVER_BROWSER_CONFIG.geolocationMaxRetries) {
+      await abortableDelay(getBackoffDelay(attempt), signal);
+      continue;
+    }
+
+    let location = null;
+
+    if (response.ok) {
+      try {
+        location = normalizeIpLocation(await response.json(), address);
+      } catch {
+        location = null;
+      }
+    }
+
+    throwIfAnalysisAborted(signal);
+    await writeCachedGeolocation(
+      address,
+      location,
+      location
+        ? SERVER_BROWSER_CONFIG.geolocationCacheTtlMs
+        : SERVER_BROWSER_CONFIG.geolocationErrorTtlMs,
+    );
+    return location;
+  }
+
+  return null;
+}
+
+function queueServerAnalysisResult(operation, server) {
+  if (operation.finished || operation.controller.signal.aborted) {
+    return;
+  }
+
+  operation.resultBuffer.push(server);
+
+  if (
+    operation.resultBuffer.length + operation.failureBuffer.length >=
+    SERVER_ANALYSIS_RESULT_CHUNK_SIZE
+  ) {
+    flushServerAnalysisResults(operation);
+  } else {
+    scheduleServerAnalysisFlush(operation);
+  }
+}
+
+function scheduleServerAnalysisFlush(operation) {
+  if (operation.flushTimer !== null || operation.finished) {
+    return;
+  }
+
+  operation.flushTimer = setTimeout(() => {
+    operation.flushTimer = null;
+    flushServerAnalysisResults(operation);
+  }, SERVER_ANALYSIS_RESULT_FLUSH_MS);
+}
+
+function flushServerAnalysisResults(operation) {
+  if (operation.controller.signal.aborted) {
+    operation.resultBuffer.length = 0;
+    operation.failureBuffer.length = 0;
+    return;
+  }
+
+  if (!operation.resultBuffer.length && !operation.failureBuffer.length) {
+    postServerAnalysisProgress(operation);
+    return;
+  }
+
+  const results = operation.resultBuffer.splice(0);
+  const failures = operation.failureBuffer.splice(0);
+  postServerAnalysisMessage(operation.port, {
+    ...getServerAnalysisStats(operation),
+    failures,
+    operationId: operation.operationId,
+    results,
+    type: "ANALYSIS_RESULTS",
+  });
+}
+
+function postServerAnalysisProgress(operation) {
+  postServerAnalysisMessage(operation.port, {
+    ...getServerAnalysisStats(operation),
+    operationId: operation.operationId,
+    type: "ANALYSIS_PROGRESS",
+  });
+}
+
+function getServerAnalysisStats(operation) {
+  return {
+    cachedCount: operation.cachedCount,
+    failedCount: operation.failedCount,
+    pagesFetched: operation.pagesFetched,
+    paginationComplete: operation.paginationComplete,
+    processedCount: operation.processedCount,
+    totalCount: operation.totalCount,
+  };
+}
+
+function cancelServerAnalysis(operation, notify) {
+  if (operation.finished) {
+    return;
+  }
+
+  operation.controller.abort();
+  if (operation.flushTimer !== null) {
+    clearTimeout(operation.flushTimer);
+    operation.flushTimer = null;
+  }
+  operation.resultBuffer.length = 0;
+  operation.failureBuffer.length = 0;
+  const cancellation = createAnalysisCancellationError();
+  operation.queue.splice(0).forEach(({ reject }) => reject(cancellation));
+  abortMainWorldAnalysisRequests(
+    operation.tabId,
+    operation.operationId,
+  ).catch(() => {});
+
+  if (notify) {
+    operation.finished = true;
+    postServerAnalysisMessage(operation.port, {
+      ...getServerAnalysisStats(operation),
+      operationId: operation.operationId,
+      type: "ANALYSIS_CANCELLED",
+    });
+  }
+}
+
+async function abortMainWorldAnalysisRequests(tabId, operationId) {
+  await chrome.scripting.executeScript({
+    args: [operationId],
+    func: (requestOperationId) => {
+      const registry = globalThis.__robloxExtensionServerAnalysisControllers;
+      const controllers = registry?.get(requestOperationId);
+
+      if (controllers) {
+        controllers.forEach((controller) => controller.abort());
+        registry.delete(requestOperationId);
+      }
+    },
+    target: { tabId },
+    world: "MAIN",
+  });
+}
+
+function postServerAnalysisMessage(port, message) {
+  try {
+    port.postMessage(message);
+  } catch {
+    // A disconnected Port is equivalent to cancellation.
+  }
+}
+
+function parseServerAnalysisOperationId(value) {
+  if (
+    typeof value !== "string" ||
+    value.length < 8 ||
+    value.length > 100 ||
+    !/^[a-zA-Z0-9_-]+$/.test(value)
+  ) {
+    throw new ApiError(
+      "INVALID_OPERATION_ID",
+      "El identificador del análisis no es válido.",
+    );
+  }
+
+  return value;
+}
+
+function createAnalysisCancellationError() {
+  return new ApiError(
+    "OPERATION_CANCELLED",
+    "El análisis de servidores fue cancelado.",
+  );
+}
+
+function throwIfAnalysisAborted(signal) {
+  if (signal?.aborted) {
+    throw createAnalysisCancellationError();
+  }
+}
+
+function isAnalysisCancellation(error, signal) {
+  return (
+    signal?.aborted ||
+    error?.code === "OPERATION_CANCELLED" ||
+    error?.name === "AbortError"
+  );
+}
+
+function abortableDelay(milliseconds, signal) {
+  if (!signal) {
+    return delay(milliseconds);
+  }
+
+  throwIfAnalysisAborted(signal);
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", handleAbort);
+      resolve();
+    }, milliseconds);
+    const handleAbort = () => {
+      clearTimeout(timer);
+      reject(createAnalysisCancellationError());
+    };
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
 }
 
 async function fetchAuthenticatedUserId() {
@@ -2631,13 +3435,7 @@ function parsePublicServerSortOrder(value) {
   return value;
 }
 
-async function fetchPublicServers(placeId, requestedMaxPages, sortOrder) {
-  const maxPages = clampInteger(
-    requestedMaxPages,
-    1,
-    SERVER_BROWSER_CONFIG.maxPages,
-    SERVER_BROWSER_CONFIG.maxPages,
-  );
+async function fetchPublicServers(placeId, sortOrder) {
   const servers = [];
   const requestedCursors = new Set();
   const seenJobIds = new Set();
@@ -2697,12 +3495,12 @@ async function fetchPublicServers(placeId, requestedMaxPages, sortOrder) {
       payload.nextPageCursor.length > 0
         ? payload.nextPageCursor
         : null;
-  } while (cursor && pagesFetched < maxPages);
+  } while (cursor);
 
   return {
     pagesFetched,
     servers,
-    truncated: Boolean(cursor),
+    truncated: false,
   };
 }
 
@@ -2795,7 +3593,13 @@ async function getServerRegion(placeId, jobId, tabId) {
   return { ...cacheEntry, cached: false, location };
 }
 
-async function fetchJoinPayloadWithRetry(placeId, jobId, tabId) {
+async function fetchJoinPayloadWithRetry(
+  placeId,
+  jobId,
+  tabId,
+  signal = null,
+  operationId = null,
+) {
   let lastPayload = null;
 
   for (
@@ -2803,9 +3607,21 @@ async function fetchJoinPayloadWithRetry(placeId, jobId, tabId) {
     attempt <= SERVER_BROWSER_CONFIG.maxRetries;
     attempt += 1
   ) {
-    await waitForRegionCheckSlot();
+    throwIfAnalysisAborted(signal);
+    await waitForRegionCheckSlot(signal);
+    throwIfAnalysisAborted(signal);
 
-    const response = await executeJoinRequestInPage(tabId, placeId, jobId);
+    const response = await executeJoinRequestInPage(
+      tabId,
+      placeId,
+      jobId,
+      operationId,
+      signal,
+    );
+
+    if (response.aborted) {
+      throw createAnalysisCancellationError();
+    }
 
     if (response.networkError) {
       if (attempt === SERVER_BROWSER_CONFIG.maxRetries) {
@@ -2816,7 +3632,7 @@ async function fetchJoinPayloadWithRetry(placeId, jobId, tabId) {
         );
       }
 
-      await delay(getBackoffDelay(attempt));
+      await abortableDelay(getBackoffDelay(attempt), signal);
       continue;
     }
 
@@ -2835,7 +3651,10 @@ async function fetchJoinPayloadWithRetry(placeId, jobId, tabId) {
         );
       }
 
-      await delay(getRetryDelayFromHeader(response.retryAfter, attempt));
+      await abortableDelay(
+        getRetryDelayFromHeader(response.retryAfter, attempt),
+        signal,
+      );
       continue;
     }
 
@@ -2876,17 +3695,38 @@ async function fetchJoinPayloadWithRetry(placeId, jobId, tabId) {
     }
 
     registerRegionRateLimit(null);
-    await delay(getBackoffDelay(attempt));
+    await abortableDelay(getBackoffDelay(attempt), signal);
   }
 
   return lastPayload;
 }
 
-async function executeJoinRequestInPage(tabId, placeId, jobId) {
+async function executeJoinRequestInPage(
+  tabId,
+  placeId,
+  jobId,
+  operationId = null,
+  signal = null,
+) {
+  throwIfAnalysisAborted(signal);
+
   try {
     const results = await chrome.scripting.executeScript({
-      args: [placeId, jobId],
-      func: async (requestPlaceId, requestJobId) => {
+      args: [placeId, jobId, operationId],
+      func: async (requestPlaceId, requestJobId, requestOperationId) => {
+        const controller = new AbortController();
+        let controllers = null;
+
+        if (requestOperationId) {
+          const registry =
+            globalThis.__robloxExtensionServerAnalysisControllers ||
+            new Map();
+          globalThis.__robloxExtensionServerAnalysisControllers = registry;
+          controllers = registry.get(requestOperationId) || new Set();
+          controllers.add(controller);
+          registry.set(requestOperationId, controllers);
+        }
+
         try {
           const response = await fetch(
             "https://gamejoin.roblox.com/v1/join-game-instance",
@@ -2903,6 +3743,7 @@ async function executeJoinRequestInPage(tabId, placeId, jobId) {
               method: "POST",
               mode: "cors",
               referrer: "https://www.roblox.com/",
+              signal: controller.signal,
             },
           );
           const retryAfter = response.headers.get("Retry-After");
@@ -2969,14 +3810,27 @@ async function executeJoinRequestInPage(tabId, placeId, jobId) {
           };
         } catch (error) {
           return {
+            aborted: controller.signal.aborted,
             networkError:
               error instanceof Error ? error.message : "Unknown fetch error",
           };
+        } finally {
+          if (requestOperationId && controllers) {
+            controllers.delete(controller);
+
+            if (!controllers.size) {
+              globalThis.__robloxExtensionServerAnalysisControllers?.delete(
+                requestOperationId,
+              );
+            }
+          }
         }
       },
       target: { tabId },
       world: "MAIN",
     });
+
+    throwIfAnalysisAborted(signal);
 
     const result = results?.[0]?.result;
 
@@ -3043,7 +3897,7 @@ async function getDataCenterLocation(dataCenterId, address) {
   }
 }
 
-async function readCachedDataCenterLocation(dataCenterId) {
+async function readCachedDataCenterLocation(dataCenterId, signal = null) {
   const key = getDataCenterLocationCacheKey(dataCenterId);
   const stored = await chrome.storage.local.get(key);
   const entry = stored[key];
@@ -3056,6 +3910,7 @@ async function readCachedDataCenterLocation(dataCenterId) {
     Date.now() >= entry.expiresAt
   ) {
     if (entry) {
+      throwIfAnalysisAborted(signal);
       await chrome.storage.local.remove(key);
     }
 
@@ -3237,7 +4092,7 @@ async function fetchIpLocation(address) {
   return null;
 }
 
-async function readCachedGeolocation(address) {
+async function readCachedGeolocation(address, signal = null) {
   const key = getGeolocationCacheKey(address);
   const stored = await chrome.storage.local.get(key);
   const entry = stored[key];
@@ -3250,6 +4105,7 @@ async function readCachedGeolocation(address) {
     Date.now() >= entry.expiresAt
   ) {
     if (entry) {
+      throwIfAnalysisAborted(signal);
       await chrome.storage.local.remove(key);
     }
 
@@ -3305,7 +4161,7 @@ function normalizeIpLocation(payload, requestedAddress, requireSuccess = true) {
     : null;
 }
 
-function waitForGeolocationSlot() {
+function waitForGeolocationSlot(signal = null) {
   const interval =
     1000 / SERVER_BROWSER_CONFIG.geolocationRequestsPerSecond;
 
@@ -3313,7 +4169,7 @@ function waitForGeolocationSlot() {
     const waitTime = Math.max(0, nextGeolocationCheckAt - Date.now());
 
     if (waitTime > 0) {
-      await delay(waitTime);
+      await abortableDelay(waitTime, signal);
     }
 
     nextGeolocationCheckAt = Date.now() + interval;
@@ -3330,6 +4186,7 @@ function looksRateLimited(payload) {
 
 async function fetchJsonWithRetry(url, options, beforeAttempt = null) {
   let lastError;
+  const signal = options?.signal || null;
 
   for (
     let attempt = 0;
@@ -3337,6 +4194,8 @@ async function fetchJsonWithRetry(url, options, beforeAttempt = null) {
     attempt += 1
   ) {
     try {
+      throwIfAnalysisAborted(signal);
+
       if (beforeAttempt) {
         await beforeAttempt();
       }
@@ -3354,7 +4213,7 @@ async function fetchJsonWithRetry(url, options, beforeAttempt = null) {
           );
         }
 
-        await delay(getRetryDelay(response, attempt));
+        await abortableDelay(getRetryDelay(response, attempt), signal);
         continue;
       }
 
@@ -3381,6 +4240,10 @@ async function fetchJsonWithRetry(url, options, beforeAttempt = null) {
         );
       }
     } catch (error) {
+      if (isAnalysisCancellation(error, signal)) {
+        throw createAnalysisCancellationError();
+      }
+
       if (error instanceof ApiError) {
         throw error;
       }
@@ -3391,7 +4254,7 @@ async function fetchJsonWithRetry(url, options, beforeAttempt = null) {
         break;
       }
 
-      await delay(getBackoffDelay(attempt));
+      await abortableDelay(getBackoffDelay(attempt), signal);
     }
   }
 
@@ -3457,7 +4320,7 @@ function getBackoffDelay(attempt) {
   return Math.min(exponential + jitter, 15_000);
 }
 
-function waitForRegionCheckSlot() {
+function waitForRegionCheckSlot(signal = null) {
   const scheduled = regionCheckGate.then(async () => {
     const waitTime = Math.max(
       0,
@@ -3465,7 +4328,7 @@ function waitForRegionCheckSlot() {
     );
 
     if (waitTime > 0) {
-      await delay(waitTime);
+      await abortableDelay(waitTime, signal);
     }
 
     if (

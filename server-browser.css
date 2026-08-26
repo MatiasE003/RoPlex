@@ -51,6 +51,7 @@ body.dark-theme .roblox-extension-server-browser,
 }
 
 .roblox-extension-server-browser__refresh,
+.roblox-extension-server-browser__cancel,
 .roblox-extension-server-browser__order-actions button,
 .roblox-extension-server-card__join {
   border: 0;
@@ -68,8 +69,25 @@ body.dark-theme .roblox-extension-server-browser,
   outline: 1px solid var(--server-browser-border);
 }
 
+.roblox-extension-server-browser__header-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.roblox-extension-server-browser__cancel {
+  background: transparent;
+  color: var(--server-browser-text);
+  outline: 1px solid var(--server-browser-border);
+}
+
 .roblox-extension-server-browser__refresh:hover:not(:disabled) {
   filter: brightness(0.96);
+}
+
+.roblox-extension-server-browser__cancel:hover:not(:disabled) {
+  background: var(--server-browser-surface-raised);
 }
 
 .roblox-extension-server-browser__refresh:disabled,
@@ -89,7 +107,8 @@ body.dark-theme .roblox-extension-server-browser,
 
 .roblox-extension-server-browser__order-choice[hidden],
 .roblox-extension-server-browser__filters[hidden],
-.roblox-extension-server-browser__refresh[hidden] {
+.roblox-extension-server-browser__refresh[hidden],
+.roblox-extension-server-browser__cancel[hidden] {
   display: none;
 }
 
@@ -185,6 +204,11 @@ body.dark-theme .roblox-extension-server-browser,
   gap: 10px;
   margin-bottom: 10px;
   padding-bottom: 8px;
+}
+
+.roblox-extension-server-group {
+  contain-intrinsic-size: auto 220px;
+  content-visibility: auto;
 }
 
 .roblox-extension-server-group__heading h3 {
