@@ -2,7 +2,7 @@ import {
   formatCompactNumber,
   handleHorizontalCarouselWheel,
   setAvatarContent,
-} from "./ui.js";
+} from "../shared/ui.js";
 
 const numberFormat = new Intl.NumberFormat("en-US");
 const dateFormat = new Intl.DateTimeFormat("en-US", {

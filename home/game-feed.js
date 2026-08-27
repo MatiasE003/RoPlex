@@ -1,11 +1,11 @@
-import { EVENTS, GAME_FEEDS } from "./config.js";
-import { sendMessage } from "./messaging.js";
+import { EVENTS, GAME_FEEDS } from "../shared/config.js";
+import { sendMessage } from "../shared/messaging.js";
 import {
   createInlineState,
   createRetryButton,
   formatCompactNumber,
   handleHorizontalCarouselWheel,
-} from "./ui.js";
+} from "../shared/ui.js";
 
 // Stateful custom elements own their lifecycle and request state.
 export class GameFeed extends HTMLElement {

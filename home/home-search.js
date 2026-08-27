@@ -1,6 +1,6 @@
-import { MESSAGE_TYPES } from "./config.js";
-import { sendMessage } from "./messaging.js";
-import { setAvatarContent } from "./ui.js";
+import { MESSAGE_TYPES } from "../shared/config.js";
+import { sendMessage } from "../shared/messaging.js";
+import { setAvatarContent } from "../shared/ui.js";
 
 // Stateful custom elements own their lifecycle and request state.
 export class HomeSearch extends HTMLElement {

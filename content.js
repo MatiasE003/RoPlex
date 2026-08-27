@@ -6,7 +6,7 @@ document.documentElement.classList.toggle("roblox-extension-home-active", isHome
 document.documentElement.classList.toggle("roblox-extension-terminal-active", isTerminal);
 document.documentElement.classList.remove("roblox-extension-profile-active");
 
-import(chrome.runtime.getURL("content/main.js")).catch((error) => {
+import(chrome.runtime.getURL("core/main.js")).catch((error) => {
   console.error("Roblox Extension frontend failed to load.", error);
   document.documentElement.classList.remove(
     "roblox-extension-home-active",

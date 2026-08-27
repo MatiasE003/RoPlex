@@ -1,5 +1,5 @@
-import { EVENTS } from "./config.js";
-import { parseRoute } from "./routes.js";
+import { EVENTS } from "../shared/config.js";
+import { parseRoute } from "../shared/routes.js";
 
 const HOME_ROOT_ID = "roblox-extension-home";
 const TERMINAL_ROOT_ID = "roblox-extension-terminal";
@@ -33,13 +33,13 @@ function initializeRouteController() {
 
 function loadRouteStyles(routeName) {
   if (routeName === "home") {
-    return loadStylesheet(SHARED_STYLESHEET_ID, "content.css");
+    return loadStylesheet(SHARED_STYLESHEET_ID, "shared/styles.css");
   }
 
   if (routeName === "profile") {
     return Promise.all([
-      loadStylesheet(SHARED_STYLESHEET_ID, "content.css"),
-      loadStylesheet(PROFILE_STYLESHEET_ID, "profile.css"),
+      loadStylesheet(SHARED_STYLESHEET_ID, "shared/styles.css"),
+      loadStylesheet(PROFILE_STYLESHEET_ID, "profile/styles.css"),
     ]);
   }
 
@@ -48,7 +48,7 @@ function loadRouteStyles(routeName) {
 
 function loadTerminalDocument() {
   if (!terminalDocumentRequest) {
-    terminalDocumentRequest = fetch(chrome.runtime.getURL("content/terminal.html"))
+    terminalDocumentRequest = fetch(chrome.runtime.getURL("terminal/terminal.html"))
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Failed to load terminal markup (${response.status}).`);
@@ -77,7 +77,7 @@ function loadTerminalDocument() {
 
 function loadTerminalRuntime() {
   if (!terminalRuntimeRequest) {
-    terminalRuntimeRequest = import("./terminal.js").catch((error) => {
+    terminalRuntimeRequest = import("../terminal/terminal.js").catch((error) => {
       terminalRuntimeRequest = null;
       throw error;
     });
@@ -154,11 +154,11 @@ function loadStylesheet(id, path) {
 function loadHomeRuntime() {
   if (!homeRuntimeRequest) {
     homeRuntimeRequest = Promise.all([
-      import("./friends.js"),
-      import("./game-feed.js"),
-      import("./home-app.js"),
-      import("./home-search.js"),
-      import("./messaging.js"),
+      import("../home/friends.js"),
+      import("../home/game-feed.js"),
+      import("../home/home-app.js"),
+      import("../home/home-search.js"),
+      import("../shared/messaging.js"),
     ])
       .then(
         ([friends, gameFeed, homeApp, homeSearch, messaging]) => {
@@ -184,8 +184,8 @@ function loadHomeRuntime() {
 function loadProfileRuntime() {
   if (!profileRuntimeRequest) {
     profileRuntimeRequest = Promise.all([
-      import("./profile-app.js"),
-      import("./profile-mode.js"),
+      import("../profile/profile-app.js"),
+      import("../profile/profile-mode.js"),
     ])
       .then(([profileApp, profileMode]) => {
         registerComponents([["rx-profile-app", profileApp.ProfileApp]]);

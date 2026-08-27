@@ -2,9 +2,9 @@ import {
   createAppShellMarkup,
   renderShellAuthenticatedUser,
   renderShellSignedOut,
-} from "./app-shell.js";
-import { EVENTS, MESSAGE_TYPES } from "./config.js";
-import { sendMessage } from "./messaging.js";
+} from "../shared/app-shell.js";
+import { EVENTS, MESSAGE_TYPES } from "../shared/config.js";
+import { sendMessage } from "../shared/messaging.js";
 import {
   renderProfileAvatar,
   renderProfileBadges,
@@ -15,7 +15,7 @@ import {
   renderProfileFriends,
   renderProfileSectionState,
 } from "./profile-sections.js";
-import { getProfileRoute } from "./routes.js";
+import { getProfileRoute } from "../shared/routes.js";
 
 const profileMarkup = createAppShellMarkup({
   active: "profile",

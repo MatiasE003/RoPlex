@@ -8,7 +8,7 @@ import vm from "node:vm";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const BACKGROUND_SOURCE = fs.readFileSync(
-  path.join(__dirname, "..", "background.js"),
+  path.join(__dirname, "..", "background", "service-worker.js"),
   "utf8",
 );
 
@@ -192,7 +192,9 @@ function createHarness({ cached, pageCount, serversPerPage }) {
     fetch,
     setTimeout,
   });
-  vm.runInContext(BACKGROUND_SOURCE, context, { filename: "background.js" });
+  vm.runInContext(BACKGROUND_SOURCE, context, {
+    filename: "background/service-worker.js",
+  });
 
   return {
     connect(port) {

@@ -7,7 +7,12 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const BACKGROUND_SOURCE = readFileSync(
-  path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "background.js"),
+  path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "background",
+    "service-worker.js",
+  ),
   "utf8",
 );
 
@@ -53,7 +58,9 @@ function createHarness({ fetch, local, session } = {}) {
     fetch: fetch || (async () => jsonResponse({})),
     setTimeout,
   });
-  vm.runInContext(BACKGROUND_SOURCE, context, { filename: "background.js" });
+  vm.runInContext(BACKGROUND_SOURCE, context, {
+    filename: "background/service-worker.js",
+  });
   return context;
 }
 

@@ -1,11 +1,11 @@
-import { EVENTS, MESSAGE_TYPES } from "./config.js";
-import { sendMessage, startHomeJoin } from "./messaging.js";
+import { EVENTS, MESSAGE_TYPES } from "../shared/config.js";
+import { sendMessage, startHomeJoin } from "../shared/messaging.js";
 import {
   createInlineState,
   createRetryButton,
   formatCompactNumber,
   setAvatarContent,
-} from "./ui.js";
+} from "../shared/ui.js";
 
 // Stateful custom elements own their lifecycle and request state.
 export class FriendsList extends HTMLElement {

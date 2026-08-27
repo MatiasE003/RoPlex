@@ -25,7 +25,7 @@
     "https://ipwho.is/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background/service-worker.js"
   },
   "declarative_net_request": {
     "rule_resources": [
@@ -39,7 +39,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.roblox.com/*"],
-      "css": ["content-activation.css"],
+      "css": ["core/activation.css"],
       "js": ["content.js"],
       "run_at": "document_start"
     },
@@ -48,7 +48,7 @@
         "https://www.roblox.com/users/*/inventory*",
         "https://www.roblox.com/*/users/*/inventory*"
       ],
-      "css": ["inventory/badge-bulk-delete.css"],
+      "css": ["inventory/styles.css"],
       "js": ["inventory/badge-bulk-delete.js"],
       "run_at": "document_idle"
     },
@@ -57,20 +57,29 @@
         "https://www.roblox.com/games/*",
         "https://www.roblox.com/*/games/*"
       ],
-      "css": ["server-browser.css"],
-      "js": ["server-browser.js"],
+      "css": ["server-browser/styles.css"],
+      "js": ["server-browser/server-browser.js"],
       "run_at": "document_idle"
     },
     {
       "matches": ["https://www.roblox.com/*"],
-      "js": ["roblox-page-bridge.js"],
+      "js": ["platform/roblox-page-bridge.js"],
       "run_at": "document_start",
       "world": "MAIN"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["content/*.js", "content/terminal.html", "content.css", "profile.css"],
+      "resources": [
+        "core/*.js",
+        "shared/*.js",
+        "shared/*.css",
+        "home/*.js",
+        "profile/*.js",
+        "profile/*.css",
+        "terminal/*.js",
+        "terminal/*.html"
+      ],
       "matches": ["https://www.roblox.com/*"]
     }
   ]

@@ -1,10 +1,10 @@
 import {
   createAppShellMarkup,
   renderShellAuthenticatedUser,
-} from "./app-shell.js";
-import { EVENTS, MESSAGE_TYPES } from "./config.js";
-import { sendMessage } from "./messaging.js";
-import { isHomeRoute } from "./routes.js";
+} from "../shared/app-shell.js";
+import { EVENTS, MESSAGE_TYPES } from "../shared/config.js";
+import { sendMessage } from "../shared/messaging.js";
+import { isHomeRoute } from "../shared/routes.js";
 
 const homeMarkup = createAppShellMarkup({
   active: "home",

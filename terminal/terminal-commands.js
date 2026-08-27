@@ -1,5 +1,5 @@
-import { MESSAGE_TYPES } from "./config.js";
-import { sendMessage } from "./messaging.js";
+import { MESSAGE_TYPES } from "../shared/config.js";
+import { sendMessage } from "../shared/messaging.js";
 
 const commands = new Map();
 
