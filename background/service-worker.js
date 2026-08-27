@@ -23,6 +23,7 @@ const HTTP_CONFIG = Object.freeze({
 });
 const HTTP_ORIGIN_CONCURRENCY = Object.freeze({
   "https://ipwho.is": 2,
+  "https://premiumfeatures.roblox.com": 6,
   "https://thumbnails.roblox.com": 6,
   "https://users.roblox.com": 6,
 });
@@ -44,6 +45,8 @@ const HOME_DISCOVERY_CACHE_LIMIT = 4;
 const HOME_FRIEND_ACTIVITY_CACHE_TTL_MS = 30 * 1000;
 const HOME_FRIEND_PREVIEW_CACHE_LIMIT = 128;
 const HOME_FRIEND_STABLE_CACHE_TTL_MS = 5 * 60 * 1000;
+const TERMINAL_PREMIUM_CACHE_LIMIT = 512;
+const TERMINAL_PREMIUM_CACHE_TTL_MS = 5 * 60 * 1000;
 const REGION_MEMORY_CACHE_LIMIT = 2_000;
 const PROFILE_BADGE_LIMIT = 16;
 const PROFILE_GAME_ENRICHMENT_CACHE_LIMIT = 512;
@@ -98,6 +101,8 @@ const profileFullAvatarCache = new Map();
 const profileFullAvatarRequests = new Map();
 const profileGameEnrichmentCache = new Map();
 const profileGameEnrichmentRequests = new Map();
+const terminalPremiumCache = new Map();
+const terminalPremiumRequests = new Map();
 const SERVER_ANALYSIS_PORT_NAME = "roblox-server-analysis";
 const SERVER_ANALYSIS_RESULT_CHUNK_SIZE = 24;
 const SERVER_ANALYSIS_RESULT_FLUSH_MS = 120;
@@ -218,6 +223,16 @@ async function handleMessage(message, sender) {
 
   if (message.type === "GET_TERMINAL_PROFILE_TARGET") {
     return resolveTerminalProfileTarget(parseTerminalProfileTarget(message.target));
+  }
+
+  if (message.type === "GET_TERMINAL_USER_DESCRIPTION") {
+    return fetchTerminalUserDescription(
+      parseTerminalDescriptionTarget(message.target),
+    );
+  }
+
+  if (message.type === "GET_TERMINAL_USER_FRIENDS") {
+    return fetchTerminalUserFriends(parseTerminalFriendsTarget(message.target));
   }
 
   if (message.type === "GET_PROFILE_BOOTSTRAP") {
@@ -2308,6 +2323,238 @@ function parseTerminalProfileTarget(value) {
   }
 
   return target;
+}
+
+function parseTerminalDescriptionTarget(value) {
+  const target = normalizeHomeText(value, 50);
+
+  if (!target) {
+    throw new ApiError(
+      "INVALID_TERMINAL_DESCRIPTION_TARGET",
+      "Uso: desc <UserId|nombre>",
+    );
+  }
+
+  if (!/^\d+$/.test(target) && !/^[a-zA-Z0-9_]{1,20}$/.test(target)) {
+    throw new ApiError(
+      "INVALID_TERMINAL_DESCRIPTION_TARGET",
+      "El usuario debe ser un UserId o un nombre de Roblox válido.",
+    );
+  }
+
+  return target;
+}
+
+function parseTerminalFriendsTarget(value) {
+  const target = normalizeHomeText(value, 50);
+
+  if (!target) {
+    throw new ApiError(
+      "INVALID_TERMINAL_FRIENDS_TARGET",
+      "Uso: ls <UserId|nombre>",
+    );
+  }
+
+  if (!/^\d+$/.test(target) && !/^[a-zA-Z0-9_]{1,20}$/.test(target)) {
+    throw new ApiError(
+      "INVALID_TERMINAL_FRIENDS_TARGET",
+      "El usuario debe ser un UserId o un nombre de Roblox válido.",
+    );
+  }
+
+  return target;
+}
+
+async function resolveTerminalUserTarget(target) {
+  if (/^\d+$/.test(target)) {
+    return parseUserId(target);
+  }
+
+  const payload = await fetchJsonWithRetry(
+    "https://users.roblox.com/v1/usernames/users",
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        excludeBannedUsers: false,
+        usernames: [target],
+      }),
+    },
+  );
+  const match = Array.isArray(payload?.data) ? payload.data[0] : null;
+  const userId = Number(match?.id);
+
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    throw new ApiError(
+      "TERMINAL_USER_NOT_FOUND",
+      `No se encontró el usuario ${target}.`,
+    );
+  }
+
+  return userId;
+}
+
+async function fetchTerminalUserFriends(target) {
+  const userId = await resolveTerminalUserTarget(target);
+  let payload;
+
+  try {
+    payload = await fetchJsonWithRetry(
+      `https://friends.roblox.com/v1/users/${userId}/friends`,
+      {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      },
+    );
+  } catch (error) {
+    if (
+      error instanceof ApiError &&
+      error.code === "ROBLOX_REQUEST_FAILED" &&
+      error.details?.httpStatus === 404
+    ) {
+      throw new ApiError(
+        "TERMINAL_USER_NOT_FOUND",
+        `No se encontró el usuario ${target}.`,
+      );
+    }
+
+    throw error;
+  }
+
+  if (!Array.isArray(payload?.data)) {
+    throw new ApiError(
+      "INVALID_TERMINAL_FRIENDS_RESPONSE",
+      "Roblox devolvió una lista de amigos inválida.",
+    );
+  }
+
+  const friendIds = Array.from(
+    new Set(
+      payload.data
+        .slice(0, 200)
+        .map((friend) => Number(friend?.id))
+        .filter((id) => Number.isSafeInteger(id) && id > 0),
+    ),
+  );
+  const profiles = friendIds.length ? await fetchFriendProfiles(friendIds) : [];
+  const premiumByUserId = await fetchTerminalPremiumStatuses(
+    profiles
+      .map((profile) => Number(profile?.id))
+      .filter((id) => Number.isSafeInteger(id) && id > 0),
+  );
+  const friends = profiles
+    .map((profile) => {
+      const id = Number(profile?.id);
+      const name = normalizeHomeText(profile?.name, 20);
+
+      return Number.isSafeInteger(id) && id > 0 && name
+        ? { id, isPremium: premiumByUserId.get(id) === true, name }
+        : null;
+    })
+    .filter((friend) => friend !== null)
+    .sort((first, second) =>
+      first.name.localeCompare(second.name, "en", { sensitivity: "base" }),
+    );
+
+  return { friends, userId };
+}
+
+async function fetchTerminalPremiumStatuses(userIds) {
+  const statuses = new Map();
+  let nextIndex = 0;
+  const workerCount = Math.min(6, userIds.length);
+
+  async function runWorker() {
+    while (nextIndex < userIds.length) {
+      const userId = userIds[nextIndex];
+      nextIndex += 1;
+      statuses.set(userId, await fetchTerminalPremiumStatus(userId));
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  return statuses;
+}
+
+async function fetchTerminalPremiumStatus(userId) {
+  const key = String(userId);
+  const cached = readMemoryCache(terminalPremiumCache, key);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const pending = terminalPremiumRequests.get(key);
+
+  if (pending) {
+    return pending;
+  }
+
+  const request = fetchJsonWithRetry(
+    `https://premiumfeatures.roblox.com/v1/users/${userId}/validate-membership`,
+    {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    },
+  )
+    .then((payload) => {
+      if (typeof payload !== "boolean") {
+        throw new ApiError(
+          "INVALID_PREMIUM_MEMBERSHIP_RESPONSE",
+          "Roblox devolvió un estado Premium/Plus inválido.",
+        );
+      }
+
+      writeMemoryCache(
+        terminalPremiumCache,
+        key,
+        payload,
+        TERMINAL_PREMIUM_CACHE_TTL_MS,
+        TERMINAL_PREMIUM_CACHE_LIMIT,
+      );
+      return payload;
+    })
+    .finally(() => terminalPremiumRequests.delete(key));
+
+  setBoundedMemoryRequest(
+    terminalPremiumRequests,
+    key,
+    request,
+    TERMINAL_PREMIUM_CACHE_LIMIT,
+  );
+  return request;
+}
+
+async function fetchTerminalUserDescription(target) {
+  const userId = await resolveTerminalUserTarget(target);
+  let user;
+
+  try {
+    user = await fetchProfileIdentity(userId);
+  } catch (error) {
+    if (
+      error instanceof ApiError &&
+      error.code === "ROBLOX_REQUEST_FAILED" &&
+      error.details?.httpStatus === 404
+    ) {
+      throw new ApiError(
+        "TERMINAL_USER_NOT_FOUND",
+        `No se encontró el usuario ${target}.`,
+      );
+    }
+
+    throw error;
+  }
+
+  return {
+    description: user.description,
+    userId: user.id,
+    username: user.username,
+  };
 }
 
 async function resolveTerminalProfileTarget(target) {

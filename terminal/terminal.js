@@ -56,7 +56,7 @@ export function mountTerminal(root) {
       if (result?.type === "clear") {
         transcript.replaceChildren();
       } else if (result?.type === "output") {
-        appendOutput(result.value);
+        appendOutput(result.value, false, result.highlights);
       } else if (result?.type === "navigate") {
         location.assign(result.url);
       }
@@ -118,7 +118,7 @@ export function mountTerminal(root) {
     scrollTranscriptToBottom();
   }
 
-  function appendOutput(value, isError = false) {
+  function appendOutput(value, isError = false, highlights = []) {
     if (typeof value !== "string" || !value) {
       return;
     }
@@ -127,7 +127,34 @@ export function mountTerminal(root) {
     entry.className = `roblox-extension-terminal__entry${
       isError ? " roblox-extension-terminal__entry--error" : ""
     }`;
-    entry.textContent = value;
+    let offset = 0;
+
+    if (Array.isArray(highlights)) {
+      highlights.forEach((highlight) => {
+        const start = Number(highlight?.start);
+        const length = Number(highlight?.length);
+        const end = start + length;
+
+        if (
+          !Number.isSafeInteger(start) ||
+          !Number.isSafeInteger(length) ||
+          length <= 0 ||
+          start < offset ||
+          end > value.length
+        ) {
+          return;
+        }
+
+        entry.append(document.createTextNode(value.slice(offset, start)));
+        const premiumName = document.createElement("span");
+        premiumName.className = "roblox-extension-terminal__entry--premium";
+        premiumName.textContent = value.slice(start, end);
+        entry.append(premiumName);
+        offset = end;
+      });
+    }
+
+    entry.append(document.createTextNode(value.slice(offset)));
     transcript.append(entry);
     scrollTranscriptToBottom();
   }

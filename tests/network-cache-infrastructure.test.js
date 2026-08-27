@@ -285,3 +285,72 @@ test("critical provider cooldown state restores from storage.session", async () 
   assert.ok(restored.geolocationBlockedUntil >= now + 60_000);
   assert.ok(restored.regionRateLimitedUntil >= now + 20_000);
 });
+
+test("terminal friend listing resolves usernames and sorts Roblox names", async () => {
+  const requests = [];
+  const context = createHarness({
+    async fetch(input, options = {}) {
+      const url = String(input);
+      requests.push({ options, url });
+
+      if (url === "https://users.roblox.com/v1/usernames/users") {
+        return jsonResponse({ data: [{ id: 42, name: "TargetUser" }] });
+      }
+
+      if (url === "https://friends.roblox.com/v1/users/42/friends") {
+        return jsonResponse({
+          data: [
+            { id: 3, name: "", displayName: "" },
+            { id: 1, name: "", displayName: "" },
+            { id: 2, name: "", displayName: "" },
+            { id: -1, name: "", displayName: "" },
+          ],
+        });
+      }
+
+      if (url === "https://users.roblox.com/v1/users") {
+        return jsonResponse({
+          data: [
+            { id: 3, name: "zeta" },
+            { id: 1, name: "Alpha" },
+            { id: 2, name: "middle" },
+          ],
+        });
+      }
+
+      if (
+        url.startsWith(
+          "https://premiumfeatures.roblox.com/v1/users/",
+        )
+      ) {
+        const premiumUserId = Number(url.match(/\/users\/(\d+)\//)?.[1]);
+        return jsonResponse(premiumUserId === 1 || premiumUserId === 3);
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    },
+  });
+  const result = await vm.runInContext(
+    'fetchTerminalUserFriends("TargetUser")',
+    context,
+  );
+
+  assert.deepEqual(JSON.parse(JSON.stringify(result.friends)), [
+    { id: 1, isPremium: true, name: "Alpha" },
+    { id: 2, isPremium: false, name: "middle" },
+    { id: 3, isPremium: true, name: "zeta" },
+  ]);
+  assert.equal(result.userId, 42);
+  assert.equal(requests.length, 6);
+  assert.deepEqual(JSON.parse(requests[0].options.body), {
+    excludeBannedUsers: false,
+    usernames: ["TargetUser"],
+  });
+  const profileRequest = requests.find(
+    ({ url }) => url === "https://users.roblox.com/v1/users",
+  );
+  assert.deepEqual(JSON.parse(profileRequest.options.body), {
+    excludeBannedUsers: true,
+    userIds: [3, 1, 2],
+  });
+});

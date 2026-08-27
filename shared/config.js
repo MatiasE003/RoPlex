@@ -15,6 +15,8 @@ export const MESSAGE_TYPES = {
   profileFriends: "GET_PROFILE_FRIENDS",
   profileFriendRequest: "REQUEST_PROFILE_FRIEND",
   profileFollow: "FOLLOW_PROFILE_USER",
+  terminalDescription: "GET_TERMINAL_USER_DESCRIPTION",
+  terminalFriends: "GET_TERMINAL_USER_FRIENDS",
   terminalProfileTarget: "GET_TERMINAL_PROFILE_TARGET",
 };
 

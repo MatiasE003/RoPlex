@@ -48,6 +48,48 @@ export async function executeTerminalCommand(input) {
   return command.execute({ args });
 }
 
+function formatLsColumns(values, maximumWidth = 80) {
+  if (!values.length) {
+    return { highlights: [], value: "" };
+  }
+
+  const gap = 2;
+  const columnWidth = Math.max(...values.map(({ name }) => name.length)) + gap;
+  const columnCount = Math.max(1, Math.floor((maximumWidth + gap) / columnWidth));
+  const rowCount = Math.ceil(values.length / columnCount);
+  const highlights = [];
+  let value = "";
+
+  for (let row = 0; row < rowCount; row += 1) {
+    if (row > 0) {
+      value += "\n";
+    }
+
+    for (let column = 0; column < columnCount; column += 1) {
+      const index = column * rowCount + row;
+
+      if (index >= values.length) {
+        break;
+      }
+
+      const friend = values[index];
+      const nextIndex = (column + 1) * rowCount + row;
+      const start = value.length;
+      value += friend.name;
+
+      if (friend.isPremium) {
+        highlights.push({ length: friend.name.length, start });
+      }
+
+      if (nextIndex < values.length) {
+        value += " ".repeat(columnWidth - friend.name.length);
+      }
+    }
+  }
+
+  return { highlights, value };
+}
+
 registerTerminalCommand({
   name: "clear",
   description: "Clear the terminal history.",
@@ -65,6 +107,49 @@ registerTerminalCommand({
       .join("\n");
 
     return { type: "output", value: commandList };
+  },
+});
+
+registerTerminalCommand({
+  name: "desc",
+  description: "Show a Roblox user's current description by UserId or username.",
+  async execute({ args }) {
+    if (args.length !== 1) {
+      throw new TerminalCommandError("Uso: desc <UserId|nombre>");
+    }
+
+    const user = await sendMessage({
+      target: args[0],
+      type: MESSAGE_TYPES.terminalDescription,
+    });
+    const description = user.description || "Este usuario no tiene descripción.";
+
+    return {
+      type: "output",
+      value: `@${user.username} (${user.userId})\n${description}`,
+    };
+  },
+});
+
+registerTerminalCommand({
+  name: "ls",
+  description: "List a Roblox user's friends by UserId or username.",
+  async execute({ args }) {
+    if (args.length !== 1) {
+      throw new TerminalCommandError("Uso: ls <UserId|nombre>");
+    }
+
+    const { friends } = await sendMessage({
+      target: args[0],
+      type: MESSAGE_TYPES.terminalFriends,
+    });
+
+    return {
+      type: "output",
+      ...(friends.length
+        ? formatLsColumns(friends)
+        : { value: "Este usuario no tiene amigos públicos." }),
+    };
   },
 });
 
